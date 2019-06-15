@@ -1,0 +1,4 @@
+*.cov
+*.log
+*.ipynb_checkpoints
+docs/build/

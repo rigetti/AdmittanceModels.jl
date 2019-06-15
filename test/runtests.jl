@@ -1,0 +1,8 @@
+include("examples.jl")
+include("test_linear_algebra.jl")
+include("test_circuit.jl")
+include("test_pso_model.jl")
+include("test_blackbox.jl")
+include("test_circuit_components.jl")
+include("../paper/radiative_loss.jl")
+include("../paper/hybridization.jl")
