@@ -3,6 +3,8 @@ using SparseArrays: sparse, spzeros, SparseMatrixCSC, findnz
 using Combinatorics: combinations
 using MatrixNetworks: bfs, scomponents
 
+export sparse_nullbasis, nullbasis
+
 """
     closest_permutation(mat::AbstractMatrix{<:Real})
 
@@ -238,7 +240,6 @@ function sparse_nullbasis(mat::SparseMatrixCSC{<:Number, Int},
     return sparse(transpose(nullbasisT))
 end
 
-export sparse_nullbasis
 """
     sparse_nullbasis(mat::SparseMatrixCSC{<:Number, Int})
 
@@ -254,7 +255,6 @@ function sparse_nullbasis(mat::SparseMatrixCSC{<:Number, Int})
     return sparse_nullbasis(mat, tree_rows, tree_columns)
 end
 
-export nullbasis
 """
     nullbasis(mat::AbstractMatrix{<:Number}; warn::Bool=true)
 

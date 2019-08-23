@@ -1,4 +1,6 @@
-export CircuitComponent
+export CircuitComponent, SeriesComponent, ParallelComponent, TransmissionLine
+export Cascade, PortOperation
+
 """
 An abstract representation of a circuit component e.g. a capacitor, inductor, or
 transmission line.
@@ -19,7 +21,6 @@ function Blackbox(ω::Vector{<:Real}, comp::CircuitComponent)
     return canonical_gauge(Blackbox(ω, PSOModel(comp)))
 end
 
-export SeriesComponent
 """
     SeriesComponent(p1::String, p2::String, inv_inductance::Float64, conductance::Float64,
         capacitance::Float64)
@@ -72,7 +73,6 @@ function PSOModel(comp::SeriesComponent)
     return PSOModel(Circuit(comp), [(comp.p1, ground), (comp.p2, ground)], [comp.p1, comp.p2])
 end
 
-export ParallelComponent
 """
     ParallelComponent(p::String, inv_inductance::Float64,
         conductance::Float64, capacitance::Float64)
@@ -105,7 +105,6 @@ end
 
 PSOModel(comp::ParallelComponent) = PSOModel(Circuit(comp), [(comp.p, ground)], [comp.p])
 
-export TransmissionLine
 """
     TransmissionLine(ports::Vector{String}, propagation_speed::Float64,
         characteristic_impedance::Float64, len::Float64,
@@ -218,7 +217,6 @@ function Blackbox(ω::Vector{<:Real}, comp::TransmissionLine)
     return cascade_and_unite([Blackbox_from_params(p...) for p in params])
 end
 
-export PortOperation
 """
 The functions allowed in a Cascade.
 """
@@ -229,7 +227,6 @@ PortOperation = Union{typeof(short_ports),
                       typeof(unite_ports),
                       typeof(canonical_gauge)}
 
-export Cascade
 """
     Cascade(components::Vector{CircuitComponent},
         operations::Vector{Pair{PortOperation, Vector{String}}})

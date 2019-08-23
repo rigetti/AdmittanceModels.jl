@@ -4,6 +4,8 @@ using LinearAlgebra: I, eigen, svd, diagm
 using IterativeSolvers: lobpcg
 
 export PSOModel
+export lossless_modes_dense, lossy_modes_dense, lossless_modes_sparse
+
 """
     PSOModel{T, U}(K::U, G::U, C::U, P::U, Q::U, ports::UniqueVector{T}) where {T, U}
     PSOModel(K::U, G::U, C::U, P::U, Q::U, ports::AbstractVector{T}) where {T, U}
@@ -68,7 +70,6 @@ end
 # KrylovKit gains the ability to solve either type of eigenproblem we can
 # write lossy_modes_sparse.
 
-export lossy_modes_dense
 """
     lossy_modes_dense(pso::PSOModel; min_freq::Real=0,
         max_freq::Union{Real, Nothing}=nothing, real_tol::Real=Inf, imag_tol::Real=Inf)
@@ -111,7 +112,6 @@ function lossy_modes_dense(pso::PSOModel; min_freq::Real=0,
     return values, vectors./sqrt.(sum(abs2.(vectors), dims=1))
 end
 
-export lossless_modes_dense
 """
     lossless_modes_dense(pso::PSOModel; min_freq::Real=0,
         max_freq::Union{Real, Nothing}=nothing)
@@ -141,7 +141,6 @@ function lossless_modes_dense(pso::PSOModel; min_freq::Real=0,
     return freqs[inds] * 2π * 1im, vectors[:, inds]
 end
 
-export lossless_modes_sparse
 """
     lossless_modes_sparse(pso::PSOModel; num_modes=1, maxiter=200)
 

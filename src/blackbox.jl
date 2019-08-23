@@ -1,6 +1,8 @@
 using UniqueVectors: UniqueVector
 
 export Blackbox
+export impedance_matrices, admittance_matrices, scattering_matrices
+
 """
     Blackbox{T, U}(ω::Vector{Float64}, Y::Vector{U}, P::U, Q::U,
         ports::UniqueVector{T}) where {T, U}
@@ -82,7 +84,6 @@ function scattering_to_admittance(S::AbstractMatrix{<:Number}, Z0::AbstractVecto
     return (I - S) * ((I + S) \ V)
 end
 
-export impedance_matrices
 """
     impedance_matrices(bbox::Blackbox)
 
@@ -91,7 +92,6 @@ Find the impedance matrices `Z` with `y = Zx` for each `ω`.
 impedance_matrices(bbox::Blackbox) = [transpose(bbox.Q) * (Y \ collect(bbox.P))
     for Y in bbox.Y]
 
-export admittance_matrices
 """
     admittance_matrices(bbox::Blackbox)
 
@@ -105,7 +105,6 @@ function admittance_matrices(bbox::Blackbox)
     end
 end
 
-export scattering_matrices
 """
     scattering_matrices(bbox::Blackbox, Z0::AbstractVector{<:Real})
 

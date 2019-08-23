@@ -2,9 +2,20 @@ using UniqueVectors: UniqueVector
 using LinearAlgebra: issymmetric, diag, I
 using SparseArrays: spzeros
 
+export Circuit
+export partial_copy, matrices
+export get_inv_inductance, get_inductance
+export get_conductance, get_resistance
+export get_elastance, get_capacitance
+export set_inv_inductance!, set_inductance!
+export set_conductance!, set_resistance!
+export set_capacitance!, set_elastance!
+
+export SpanningTree, coordinate_matrix
+export cascade, unite_vertices, cascade_and_unite
+
 SparseMat = SparseMatrixCSC{Float64,Int}
 
-export Circuit
 struct Circuit{T}
     k::SparseMat # inverse inductances
     g::SparseMat # conductances
@@ -34,7 +45,6 @@ function Circuit(vertices::AbstractVector{T}) where T
     return Circuit(z(), z(), z(), vertices)
 end
 
-export partial_copy
 function partial_copy(circ::Circuit{T};
    k::Union{SparseMat, Nothing}=nothing,
    g::Union{SparseMat, Nothing}=nothing,
@@ -47,8 +57,8 @@ function partial_copy(circ::Circuit{T};
    return Circuit(k, g, c, vertices)
 end
 
-import Base: ==
-function ==(circ1::Circuit, circ2::Circuit)
+# don't remove space between Base. and ==
+function Base. ==(circ1::Circuit, circ2::Circuit)
     if typeof(circ1) != typeof(circ2)
         return false
     end
@@ -56,8 +66,7 @@ function ==(circ1::Circuit, circ2::Circuit)
         for name in fieldnames(Circuit)])
 end
 
-import Base: isapprox
-function isapprox(circ1::Circuit, circ2::Circuit)
+function Base.isapprox(circ1::Circuit, circ2::Circuit)
     if typeof(circ1) != typeof(circ2)
         return false
     end
@@ -65,7 +74,6 @@ function isapprox(circ1::Circuit, circ2::Circuit)
         for name in fieldnames(Circuit)[1:end-1]])
 end
 
-export matrices
 matrices(c::Circuit) = [c.k, c.g, c.c]
 
 function get_matrix_element(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T) where T
@@ -74,22 +82,11 @@ function get_matrix_element(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T) wh
     return getfield(c, matrix_name)[i0, i1]
 end
 
-export get_inv_inductance
 get_inv_inductance(c::Circuit{T}, v0::T, v1::T) where T = get_matrix_element(c, :k, v0, v1)
-
-export get_inductance
 get_inductance(c::Circuit{T}, v0::T, v1::T) where T = 1/get_inv_inductance(c, v0, v1)
-
-export get_conductance
 get_conductance(c::Circuit{T}, v0::T, v1::T) where T = get_matrix_element(c, :g, v0, v1)
-
-export get_resistance
 get_resistance(c::Circuit{T}, v0::T, v1::T) where T = 1/get_conductance(c, v0, v1)
-
-export get_capacitance
 get_capacitance(c::Circuit{T}, v0::T, v1::T) where T = get_matrix_element(c, :c, v0, v1)
-
-export get_elastance
 get_elastance(c::Circuit{T}, v0::T, v1::T) where T = 1/get_capacitance(c, v0, v1)
 
 function set_matrix_element!(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T,
@@ -105,27 +102,21 @@ function set_matrix_element!(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T,
     return c
 end
 
-export set_inv_inductance!
 set_inv_inductance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
     set_matrix_element!(c, :k, v0, v1, value)
 
-export set_inductance!
 set_inductance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
     set_inv_inductance!(c, v0, v1, 1/value)
 
-export set_conductance!
 set_conductance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
     set_matrix_element!(c, :g, v0, v1, value)
 
-export set_resistance!
 set_resistance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
     set_conductance!(c, v0, v1, 1/value)
 
-export set_capacitance!
 set_capacitance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
     set_matrix_element!(c, :c, v0, v1, value)
 
-export set_elastance!
 set_elastance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
     set_capacitance!(c, v0, v1, 1/value)
 
@@ -133,7 +124,6 @@ set_elastance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
 # spanning trees
 #######################################################
 
-export SpanningTree
 struct SpanningTree{T}
     root::T
     edges::Vector{Tuple{T, T}}
@@ -147,7 +137,6 @@ function SpanningTree(vertices::AbstractVector{T}) where T
     return SpanningTree{T}(root, edges)
 end
 
-export coordinate_matrix
 # T matrix in section IIC with a given spanning tree.
 # The direction of the edges passed in is ignored and enforced as being outwards
 # from the root
@@ -185,7 +174,6 @@ coordinate_matrix(c::Circuit) = coordinate_matrix(length(c.vertices))
 # cascade and unite
 #######################################################
 
-export cascade
 function cascade(circs::AbstractVector{Circuit{T}}) where T
     circuit_matrices = [cat(m..., dims=(1,2))
         for m in zip([matrices(circ) for circ in circs]...)]
@@ -195,7 +183,6 @@ end
 
 cascade(circs::Vararg{Circuit{T}}) where T = cascade(collect(circs))
 
-export unite_vertices
 function unite_vertices(circ::Circuit{T}, vertices::AbstractVector{T}) where T
     if length(vertices) <= 1
         return circ
@@ -223,7 +210,6 @@ end
 unite_vertices(circ::Circuit{T}, vertices::Vararg{T}) where T =
     unite_vertices(circ, collect(vertices))
 
-export cascade_and_unite
 # cascade all circuits and unite vertices with the same name
 function cascade_and_unite(circs::AbstractVector{Circuit{T}}) where T
     @assert length(circs) >= 1

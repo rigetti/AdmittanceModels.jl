@@ -1,4 +1,8 @@
 export AdmittanceModel
+export get_Y, get_P, get_Q, get_ports, partial_copy, compatible, canonical_gauge
+export apply_transform, cascade, cascade_and_unite, ports_to_indices
+export unite_ports, open_ports, open_ports_except, short_ports, short_ports_except
+
 """
 An abstract representation of a linear mapping from inputs `x` to outputs `y` of the form
 `YΦ = Px`, `y = QᵀΦ`. Subtypes U <: AdmittanceModel are expected to implement:
@@ -12,7 +16,6 @@ An abstract representation of a linear mapping from inputs `x` to outputs `y` of
 """
 abstract type AdmittanceModel{T} end
 
-export get_Y
 """
     get_Y(pso::PSOModel)
     get_Y(bbox::Blackbox)
@@ -21,7 +24,6 @@ Return a vector of admittance matrices.
 """
 function get_Y end
 
-export get_P
 """
     get_P(pso::PSOModel)
     get_P(bbox::Blackbox)
@@ -30,7 +32,6 @@ Return an input port matrix.
 """
 function get_P end
 
-export get_Q
 """
     get_Q(pso::PSOModel)
     get_Q(bbox::Blackbox)
@@ -39,7 +40,6 @@ Return an output port matrix.
 """
 function get_Q end
 
-export get_ports
 """
     get_ports(pso::PSOModel)
     get_ports(bbox::Blackbox)
@@ -48,7 +48,6 @@ Return a vector of port identifiers.
 """
 function get_ports end
 
-export partial_copy
 """
     partial_copy(pso::PSOModel{T, U};
         Y::Union{Vector{V}, Nothing}=nothing,
@@ -66,7 +65,6 @@ Create a new model with the same fields except those given as keyword arguments.
 """
 function partial_copy end
 
-export compatible
 """
     compatible(psos::AbstractVector{PSOModel{T, U}}) where {T, U}
     compatible(bboxes::AbstractVector{Blackbox{T, U}}) where {T, U}
@@ -76,7 +74,6 @@ that share the same value of `ω`.
 """
 function compatible end
 
-export canonical_gauge
 """
     canonical_gauge(pso::PSOModel)
     canonical_gauge(bbox::Blackbox)
@@ -86,8 +83,8 @@ Apply an invertible transformation that takes the model to coordinates in which
 """
 function canonical_gauge end
 
-import Base: ==
-function ==(am1::AdmittanceModel, am2::AdmittanceModel)
+# don't remove space between Base. and ==
+function Base. ==(am1::AdmittanceModel, am2::AdmittanceModel)
     t = typeof(am1)
     if typeof(am2) != t
         return false
@@ -95,8 +92,7 @@ function ==(am1::AdmittanceModel, am2::AdmittanceModel)
     return all([getfield(am1, name) == getfield(am2, name) for name in fieldnames(t)])
 end
 
-import Base: isapprox
-function isapprox(am1::AdmittanceModel, am2::AdmittanceModel)
+function Base.isapprox(am1::AdmittanceModel, am2::AdmittanceModel)
     t = typeof(am1)
     if typeof(am2) != t
         return false
@@ -104,7 +100,6 @@ function isapprox(am1::AdmittanceModel, am2::AdmittanceModel)
     return all([getfield(am1, name) ≈ getfield(am2, name) for name in fieldnames(t)])
 end
 
-export apply_transform
 """
     apply_transform(am::AdmittanceModel, transform::AbstractMatrix{<:Number})
 
@@ -117,7 +112,6 @@ function apply_transform(am::AdmittanceModel, transform::AbstractMatrix{<:Number
     return partial_copy(am, Y=Y, P=P, Q=Q)
 end
 
-export cascade
 """
     cascade(ams::AbstractVector{U}) where {T, U <: AdmittanceModel{T}}
     cascade(ams::Vararg{U}) where {T, U <: AdmittanceModel{T}}
@@ -139,7 +133,6 @@ end
 
 cascade(ams::Vararg{U}) where {T, U <: AdmittanceModel{T}} = cascade(collect(ams))
 
-export ports_to_indices
 """
     ports_to_indices(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
     ports_to_indices(am::AdmittanceModel{T}, ports::Vararg{T}) where T
@@ -154,7 +147,6 @@ end
 ports_to_indices(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
     ports_to_indices(am, collect(ports))
 
-export unite_ports
 """
     unite_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
     unite_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T
@@ -179,7 +171,6 @@ end
 unite_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
     unite_ports(am, collect(ports))
 
-export open_ports
 """
     open_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
     open_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T
@@ -199,7 +190,6 @@ end
 open_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
     open_ports(am, collect(ports))
 
-export open_ports_except
 """
     open_ports_except(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
     open_ports_except(am::AdmittanceModel{T}, ports::Vararg{T}) where T
@@ -213,7 +203,6 @@ end
 open_ports_except(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
     open_ports_except(am, collect(ports))
 
-export short_ports
 """
     short_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
     short_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T
@@ -235,7 +224,6 @@ end
 short_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
     short_ports(am, collect(ports))
 
-export short_ports_except
 """
     short_ports_except(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
     short_ports_except(am::AdmittanceModel{T}, ports::Vararg{T}) where T
@@ -249,7 +237,6 @@ end
 short_ports_except(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
     short_ports_except(am, collect(ports))
 
-export cascade_and_unite
 """
     cascade_and_unite(models::AbstractVector{U}) where {T, U <: AdmittanceModel{T}}
     cascade_and_unite(models::Vararg{U}) where {T, U <: AdmittanceModel{T}}
