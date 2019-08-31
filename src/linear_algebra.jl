@@ -14,15 +14,63 @@ corresponding to the assignment is as large as possible under lexicographical or
 Return a matrix of Bools where each column has a single true in it corresponding to its
 assignment.
 """
-function closest_permutation(mat::AbstractMatrix{<:Real})
-    ans = zeros(Bool, size(mat)...) # initialize answer as all false
-    queue = collect(1:size(mat, 2)) # columns to be assigned
-    while length(queue) > 0
-        col = pop!(queue)
-        possible_assignments = collect(1:size(mat, 1)) # row indices
+function closest_permutation(mat::AbstractMatrix)
+    nrows, ncols = size(mat)
+    @assert nrows >= ncols
+    ans = similar(BitArray, axes(mat)) # initialize answer as all false
+    fill!(ans, false)
+
+    ax2 = axes(mat, 2)
+
+    # Do a first pass, ignoring collisions.
+    colidxs = similar(ax2)
+    for col in ax2
+        @inbounds begin
+            _, i = findmax(mat[:, col])
+            ans[i, col] = true
+            colidxs[col] = i
+        end
+    end
+
+    # Prepare a BitArray `collisions` and mark collided columns in it.
+    sp = sortperm(colidxs)
+    sortedidxs = colidxs[sp]
+    collisions = similar(BitArray, ax2)
+    fill!(collisions, false)
+
+    previndex = firstindex(sortedidxs)
+    @inbounds for i in eachindex(sortedidxs)
+        isequal(i, firstindex(sortedidxs)) && continue
+        if isequal(sortedidxs[i], sortedidxs[previndex])
+            collisions[sp[i]] = true
+            collisions[sp[previndex]] = true
+        end
+        previndex = i
+    end
+
+    @inbounds stack = sp[collisions]
+    isempty(stack) && return ans
+
+    # reset columns in `ans` where collisions happened
+    for col in stack
+        @inbounds ans[:, col] .= false
+    end
+
+    # fall-back to single-threaded collision resolution on collided columns
+    return _closest_permutation(mat, ans, stack)
+end
+
+function _closest_permutation(mat::AbstractMatrix, ans, stack)
+    ax1 = axes(mat, 1)
+    ax1l = length(ax1)
+    possible_assignments = Vector{eltype(ax1)}() # row indices
+
+    @inbounds while length(stack) > 0
+        col = pop!(stack)
+        resize!(possible_assignments, ax1l)
+        possible_assignments .= axes(mat, 1)
         assigned = false
         while !assigned
-            @assert length(possible_assignments) > 0 # otherwise failed to assign
             value, i = findmax(mat[possible_assignments, col])
             assignment = possible_assignments[i]
             collision = findfirst(ans[assignment, :])
@@ -33,7 +81,7 @@ function closest_permutation(mat::AbstractMatrix{<:Real})
                 ans[assignment, col] = true
                 assigned = true
                 ans[assignment, collision] = false
-                push!(queue, collision) # need to reassign collision
+                push!(stack, collision) # need to reassign collision
             else
                 deleteat!(possible_assignments, i) # try somewhere else
             end
@@ -53,7 +101,7 @@ function match_vectors(port_vectors::AbstractMatrix{<:Number},
     eigenvectors::AbstractMatrix{<:Number})
     @assert size(port_vectors, 1) == size(eigenvectors, 1)
     @assert size(port_vectors, 2) <= size(eigenvectors, 2)
-    mat = abs.(eigenvectors' * port_vectors) # tall skinny matrix
+    mat = abs2.(eigenvectors' * port_vectors) # tall skinny matrix
     _, indices = findmax(closest_permutation(mat), dims=1)
     return [index[1] for index in vcat(indices...)]
 end
