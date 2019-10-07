@@ -56,9 +56,10 @@ end
 compatible(psos::AbstractVector{PSOModel{T, U}}) where {T, U} = true
 
 function canonical_gauge(pso::PSOModel)
-    F = qr(pso.P)
-    (m, n) = size(pso.P)
-    transform = collect(F.Q * Matrix(I,m,m)) * [transpose(inv(collect(F.R))) zeros(n, m-n);
+    fullP = collect(pso.P)
+    F = qr(fullP)
+    (m, n) = size(fullP)
+    transform = (F.Q * Matrix(I,m,m)) * [transpose(inv(F.R)) zeros(n, m-n);
         zeros(m-n, n) Matrix(I, m-n, m-n)]
     return apply_transform(pso, transform)
 end

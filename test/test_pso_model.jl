@@ -1,9 +1,9 @@
 using Test, AdmittanceModels, LinearAlgebra
-import .CircuitExample, .PSOModelExample, .CircuitCascadeExample, .LRCExample
 const ce = CircuitExample
 const ae = PSOModelExample
 const cce = CircuitCascadeExample
 const lrce = LRCExample
+const hwe = HalfWaveExample
 using SparseArrays: SparseMatrixCSC
 
 @testset "PSOModel" begin
@@ -121,4 +121,7 @@ end
     @test typeof(P) <: Matrix
     m, n = size(P)
     @test P ≈ [Matrix(I, n, n); zeros(m-n, n)]
+
+    m, n = size(hwe.pso.P)
+    @test canonical_gauge(hwe.pso).P ≈ [Matrix(I, n, n); zeros(m-n, n)]
 end

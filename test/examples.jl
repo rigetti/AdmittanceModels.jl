@@ -72,3 +72,20 @@ module LRCExample
     set_capacitance!(circuit, 0, 1, c)
     pso = PSOModel(circuit, [(0, 1)], ["port"])
 end
+
+module HalfWaveExample
+    using AdmittanceModels
+    ν, Z0, δ = 1e8, 50.0, 150e-6
+    resonator_length = 10e-3
+    coupler_locs = resonator_length * [1/3, 2/3]
+
+    resonator = TransmissionLine(["short_1", "coupler_1", "coupler_2", "short_2"],
+                                 ν, Z0, resonator_length, coupler_locs, δ)
+    coupling_cs = [10, 15] * 1e-15
+    capacitors = [SeriesComponent("coupler_$i", "qubit_$i", 0, 0, coupling_cs[i]) for i in 1:2]
+    qubit_cs = [100, 120] * 1e-15
+    qubits = [ParallelComponent("qubit_$i", 0, 0, qubit_cs[i]) for i in 1:2]
+    casc = Cascade([resonator; capacitors; qubits], [short_ports => ["short_1", "short_2"],
+        open_ports_except => ["qubit_1", "qubit_2"]])
+    pso = PSOModel(casc)
+end
