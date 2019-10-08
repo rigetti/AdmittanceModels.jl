@@ -160,7 +160,7 @@ function lossless_modes_sparse(pso::PSOModel; num_modes=1, maxiter=200)
     return real.(sqrt.(values)) * 1im, vectors
 end
 
-function port_matrix(circuit::Circuit{T}, port_edges::Vector{Tuple{T, T}}) where T
+function port_matrix(circuit::Circuit, port_edges::Vector{<:Tuple})
     coord_matrix = coordinate_matrix(circuit)
     if length(port_edges) > 0
         port_indices = [(findfirst(isequal(p[1]), circuit.vertices),
@@ -176,14 +176,14 @@ circuit_to_pso_matrix(m::AbstractMatrix{<:Real}) =
     (-m + spdiagm(0=>sum(m, dims=2)[:,1]))[2:end, 2:end]
 
 """
-    PSOModel(circuit::Circuit{T}, port_edges::Vector{Tuple{T, T}},
-        port_names::AbstractVector{S}) where {T, S}
+    PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
+        port_names::AbstractVector)
 
 Create a PSOModel for a circuit with ports on given edges. The spanning tree where the
 first vertex is chosen as ground and all other vertices are neighbors of ground is used.
 """
-function PSOModel(circuit::Circuit{T}, port_edges::Vector{Tuple{T, T}},
-    port_names::AbstractVector{S}) where {T, S}
+function PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
+        port_names::AbstractVector)
     Y = [circuit_to_pso_matrix(m) for m in matrices(circuit)]
     P = port_matrix(circuit, port_edges)
     return PSOModel(Y..., P, P, port_names)
@@ -197,13 +197,13 @@ function coordinate_transform(coord_matrix_from::AbstractMatrix{<:Real},
 end
 
 """
-    PSOModel(circuit::Circuit{T}, port_edges::Vector{Tuple{T, T}},
-        port_names::AbstractVector{S}, tree::SpanningTree{T}) where {T, S}
+    PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
+        port_names::AbstractVector, tree::SpanningTree)
 
 Create a PSOModel for a circuit with ports on given edges and using the given spanning tree.
 """
-function PSOModel(circuit::Circuit{T}, port_edges::Vector{Tuple{T, T}},
-    port_names::AbstractVector{S}, tree::SpanningTree{T}) where {T, S}
+function PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
+        port_names::AbstractVector, tree::SpanningTree)
     pso = PSOModel(circuit, port_edges, port_names)
     transform = transpose(coordinate_transform(coordinate_matrix(circuit, tree)))
     return apply_transform(pso, transform)

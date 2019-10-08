@@ -76,23 +76,22 @@ end
 
 matrices(c::Circuit) = [c.k, c.g, c.c]
 
-function get_matrix_element(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T) where T
+function get_matrix_element(c::Circuit, matrix_name::Symbol, v0, v1)
     i0 = findfirst(isequal(v0), c.vertices)
     i1 = findfirst(isequal(v1), c.vertices)
     return getfield(c, matrix_name)[i0, i1]
 end
 
-get_inv_inductance(c::Circuit{T}, v0::T, v1::T) where T = get_matrix_element(c, :k, v0, v1)
-get_inductance(c::Circuit{T}, v0::T, v1::T) where T = 1/get_inv_inductance(c, v0, v1)
-get_conductance(c::Circuit{T}, v0::T, v1::T) where T = get_matrix_element(c, :g, v0, v1)
-get_resistance(c::Circuit{T}, v0::T, v1::T) where T = 1/get_conductance(c, v0, v1)
-get_capacitance(c::Circuit{T}, v0::T, v1::T) where T = get_matrix_element(c, :c, v0, v1)
-get_elastance(c::Circuit{T}, v0::T, v1::T) where T = 1/get_capacitance(c, v0, v1)
+get_inv_inductance(c::Circuit, v0, v1) = get_matrix_element(c, :k, v0, v1)
+get_inductance(c::Circuit, v0, v1) = inv(get_inv_inductance(c, v0, v1))
+get_conductance(c::Circuit, v0, v1) = get_matrix_element(c, :g, v0, v1)
+get_resistance(c::Circuit, v0, v1) = inv(get_conductance(c, v0, v1))
+get_capacitance(c::Circuit, v0, v1) = get_matrix_element(c, :c, v0, v1)
+get_elastance(c::Circuit, v0, v1) = inv(get_capacitance(c, v0, v1))
 
-function set_matrix_element!(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T,
-    value::Real) where T
-    @assert value >= 0
-    @assert value < Inf
+function set_matrix_element!(c::Circuit, matrix_name::Symbol, v0, v1, value)
+    @assert value >= zero(value)
+    @assert !isinf(value)
     i0 = findfirst(isequal(v0), c.vertices)
     i1 = findfirst(isequal(v1), c.vertices)
     @assert i0 != i1
@@ -102,23 +101,23 @@ function set_matrix_element!(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T,
     return c
 end
 
-set_inv_inductance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
+set_inv_inductance!(c::Circuit, v0, v1, value) =
     set_matrix_element!(c, :k, v0, v1, value)
 
-set_inductance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
-    set_inv_inductance!(c, v0, v1, 1/value)
+set_inductance!(c::Circuit, v0, v1, value) =
+    set_inv_inductance!(c, v0, v1, inv(value))
 
-set_conductance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
+set_conductance!(c::Circuit, v0, v1, value) =
     set_matrix_element!(c, :g, v0, v1, value)
 
-set_resistance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
-    set_conductance!(c, v0, v1, 1/value)
+set_resistance!(c::Circuit, v0, v1, value) =
+    set_conductance!(c, v0, v1, inv(value))
 
-set_capacitance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
+set_capacitance!(c::Circuit, v0, v1, value) =
     set_matrix_element!(c, :c, v0, v1, value)
 
-set_elastance!(c::Circuit{T}, v0::T, v1::T, value::Real) where T =
-    set_capacitance!(c, v0, v1, 1/value)
+set_elastance!(c::Circuit, v0, v1, value) =
+    set_capacitance!(c, v0, v1, inv(value))
 
 #######################################################
 # spanning trees
