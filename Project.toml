@@ -1,5 +1,5 @@
 name = "AdmittanceModels"
-uuid = "88a7bace-b6cd-11e8-0e38-19740a683dcd"
+uuid = "5eda1363-42a2-4d75-bc45-7e2a4a7b92b2"
 authors = ["Michael Scheer <mgscheer@@gmail.com>, Dan Girshovich <dan@rigetti.com>"]
 version = "0.1.0"
 
