@@ -1,3 +1,4 @@
+DesignVariation:dummy1='-1.23' dummy2='9e-07mm' dummy3='-1.0e21pF' dummy4='1.2eunits'
 Setup1:LastAdaptive
 Problem Type:C
 C Units:pF, G Units:mSie
