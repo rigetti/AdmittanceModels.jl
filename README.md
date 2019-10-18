@@ -112,3 +112,9 @@ plot(scatter(x=ω/(2π*1e9), y=angle.(S)), Layout(xaxis_title="Frequency [GHz]",
 ```
 
 ![](docs/Phase.png)
+
+## Using with ANSYS Q3D
+
+Plain text files containing RLGC parameters exported by ANSYS Q3D can be
+used to construct a `Circuit` object via `Circuit(file_path)`. Currently
+only capacitance matrices are supported.
