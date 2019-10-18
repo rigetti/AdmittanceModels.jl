@@ -1,0 +1,48 @@
+Setup1:LastAdaptive
+Problem Type:C
+C Units:pF, G Units:kSie
+Reduce Matrix:Original
+Frequency: 1E+009 Hz
+
+Capacitance Matrix
+	net1	net2	net3	net4	
+net1	0.011991	-0.0017236	-0.0035891	-0.00021927	
+net2	-0.0017236	0.012106	-0.0045205	-0.00013048	
+net3	-0.0035891	-0.0045205	0.04501	-0.00043332	
+net4	-0.00021927	-0.00013048	-0.00043332	0.0037523	
+
+Capacitance Matrix Coupling Coefficient
+	net1	net2	net3	net4	
+net1	1	0.14306	0.15449	0.032688	
+net2	0.14306	1	0.19366	0.019359	
+net3	0.15449	0.19366	1	0.033343	
+net4	0.032688	0.019359	0.033343	1	
+
+Spice Capacitance Matrix
+	net1	net2	net3	net4	
+net1	0.0064594	0.0017236	0.0035891	0.00021927	
+net2	0.0017236	0.0057315	0.0045205	0.00013048	
+net3	0.0035891	0.0045205	0.036467	0.00043332	
+net4	0.00021927	0.00013048	0.00043332	0.0029693	
+
+Conductance Matrix
+	net1	net2	net3	net4	
+net1	0	0	0	0	
+net2	0	0	0	0	
+net3	0	0	0	0	
+net4	0	0	0	0	
+
+Conductance Matrix Coupling Coefficient
+	net1	net2	net3	net4	
+net1	0	0	0	0	
+net2	0	0	0	0	
+net3	0	0	0	0	
+net4	0	0	0	0	
+
+Spice Conductance Matrix
+	net1	net2	net3	net4	
+net1	0	-0	-0	-0	
+net2	-0	0	-0	-0	
+net3	-0	-0	0	-0	
+net4	-0	-0	-0	0	
+

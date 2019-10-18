@@ -1,0 +1,5 @@
+Setup1:LastAdaptive
+Problem Type:C
+C Units:pF, G Units:mSie
+Reduce Matrix:Original
+Frequency: 1E+009 Hz
