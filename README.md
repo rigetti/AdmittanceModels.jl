@@ -3,8 +3,11 @@
 [paper-url]: https://arxiv.org/abs/1810.11510
 [travis-img]: https://travis-ci.com/rigetti/AdmittanceModels.jl.svg?branch=master
 [travis-url]: https://travis-ci.com/rigetti/AdmittanceModels.jl
+[codecov-img]: https://codecov.io/gh/rigetti/AdmittanceModels.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/rigetti/AdmittanceModels.jl
 
 [![][travis-img]][travis-url]
+[![][codecov-img]][codecov-url]
 
 AdmittanceModels.jl is a package for creating and manipulating linear input-output models of the form `YΦ = Px`, `y = QᵀΦ` where `x` are the inputs and `y` are the outputs. One example of such a model is a Positive Second Order model, defined in [[1]][paper-url]. Such models can capture the equations of motion of a circuit consisting of inductors, capacitors, and resistors.
 

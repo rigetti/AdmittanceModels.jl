@@ -1,8 +1,14 @@
 language: julia
 os:
   - linux
-  - osx
 julia:
+  - 1.0
   - 1.1
+  - 1.2
+  - nightly
+codecov: true
 notifications:
   email: false
+matrix:
+  allow_failures:
+    - julia: nightly
