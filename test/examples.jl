@@ -85,7 +85,7 @@ module HalfWaveExample
     capacitors = [SeriesComponent("coupler_$i", "qubit_$i", 0, 0, coupling_cs[i]) for i in 1:2]
     qubit_cs = [100, 120] * 1e-15
     qubits = [ParallelComponent("qubit_$i", 0, 0, qubit_cs[i]) for i in 1:2]
-    casc = Cascade([resonator; capacitors; qubits], [short_ports => ["short_1", "short_2"],
-        open_ports_except => ["qubit_1", "qubit_2"]])
-    pso = PSOModel(casc)
+    pso = cascade_and_unite(PSOModel.([resonator; capacitors; qubits]))
+    pso = short_ports(pso, ["short_1", "short_2"])
+    pso = open_ports_except(pso, ["qubit_1", "qubit_2"])
 end
