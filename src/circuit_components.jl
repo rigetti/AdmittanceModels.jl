@@ -1,5 +1,4 @@
 export CircuitComponent, SeriesComponent, ParallelComponent, TransmissionLine
-export Cascade, PortOperation
 
 """
 An abstract representation of a circuit component e.g. a capacitor, inductor, or
@@ -13,7 +12,6 @@ ground = ""
 """
     Blackbox(ω::Vector{<:Real}, comp::CircuitComponent)
     Blackbox(ω::Vector{<:Real}, comp::TransmissionLine)
-    Blackbox(ω::Vector{<:Real}, comp::Cascade)
 
 Create a Blackbox model for a CircuitComponent.
 """
@@ -65,7 +63,6 @@ end
     PSOModel(comp::SeriesComponent)
     PSOModel(comp::ParallelComponent)
     PSOModel(comp::TransmissionLine)
-    PSOModel(comp::Cascade)
 
 Create a PSOModel for a CircuitComponent.
 """
@@ -215,42 +212,4 @@ function Blackbox(ω::Vector{<:Real}, comp::TransmissionLine)
               len = sort_port_locations[i+1] - sort_port_locations[i])
               for i in 1:(length(comp.ports)-1)]
     return cascade_and_unite([Blackbox_from_params(p...) for p in params])
-end
-
-"""
-The functions allowed in a Cascade.
-"""
-PortOperation = Union{typeof(short_ports),
-                      typeof(short_ports_except),
-                      typeof(open_ports),
-                      typeof(open_ports_except),
-                      typeof(unite_ports),
-                      typeof(canonical_gauge)}
-
-"""
-    Cascade(components::Vector{CircuitComponent},
-        operations::Vector{Pair{PortOperation, Vector{String}}})
-
-A system created by cascading and uniting several CircuitComponents and then applying
-PortOperations to the ports.
-"""
-struct Cascade <: CircuitComponent
-    components::Vector{CircuitComponent}
-    operations::Vector{Pair{PortOperation, Vector{String}}}
-end
-
-function PSOModel(comp::Cascade)
-    model = cascade_and_unite([PSOModel(m) for m in comp.components])
-    for (op, args) in comp.operations
-        model = op(model, args...)
-    end
-    return model
-end
-
-function Blackbox(ω::Vector{<:Real}, comp::Cascade)
-    model = cascade_and_unite([Blackbox(ω, m) for m in comp.components])
-    for (op, args) in comp.operations
-        model = op(model, args...)
-    end
-    return model
 end

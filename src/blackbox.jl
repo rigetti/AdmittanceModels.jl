@@ -54,7 +54,7 @@ function partial_copy(bbox::Blackbox{T, U};
     return Blackbox(bbox.ω, Y, P, Q, ports)
 end
 
-function compatible(bboxes::AbstractVector{Blackbox{T, U}}) where {T, U}
+function compatible(bboxes::AbstractVector{<:Blackbox})
     if length(bboxes) == 0
         return true
     end

@@ -82,7 +82,7 @@ end
 # Admittance model version
 #######################################################
 
-function casc_from_model(stub_num::Int, discretization::Real=δ)
+function components_from_model(stub_num::Int, discretization::Real=δ)
     pfilter = TransmissionLine(["p/short_0", "in", "p/res_0_coupler", "p/middle",
                                 "p/res_1_coupler", "out", "p/short_1"],
                                ν, Z0, pfilter_len, locations=[stub_num * δ, pfilter_res_coupler_0_len,
@@ -94,21 +94,21 @@ function casc_from_model(stub_num::Int, discretization::Real=δ)
                          ν, Z0, res_1_len, locations=[res_coupler_len], δ=discretization)
     capacitor_0 = SeriesComponent("p/res_0_coupler", "r0/pfilter_coupler", 0, 0, capacitance_0)
     capacitor_1 = SeriesComponent("p/res_1_coupler", "r1/pfilter_coupler", 0, 0, capacitance_1)
-    components = [pfilter, res_0, res_1, capacitor_0, capacitor_1]
-    operations = [short_ports => ["p/short_0", "p/short_1", "r0/short", "r1/short"]]
-    return Cascade(components, operations)
+    return [pfilter, res_0, res_1, capacitor_0, capacitor_1]
 end
 
 function bbox_from_pso(stub_num::Int, ω::Vector{<:Real}, discretization::Real=δ)
-    casc = casc_from_model(stub_num, discretization)
-    push!(casc.operations, open_ports_except => ["in", "out"])
-    return Blackbox(ω, PSOModel(casc)) |> canonical_gauge
+    model = cascade_and_unite(PSOModel.(components_from_model(stub_num, discretization)))
+    model = short_ports(model, ["p/short_0", "p/short_1", "r0/short", "r1/short"])
+    model = open_ports_except(model, ["in", "out"])
+    return canonical_gauge(Blackbox(ω, model))
 end
 
 function bbox_from_bbox(stub_num::Int, ω::Vector{<:Real})
-    casc = casc_from_model(stub_num)
-    push!(casc.operations, open_ports_except => ["in", "out"])
-    return Blackbox(ω, casc) |> canonical_gauge
+    model = cascade_and_unite(Blackbox.(Ref(ω), components_from_model(stub_num)))
+    model = short_ports(model, ["p/short_0", "p/short_1", "r0/short", "r1/short"])
+    model = open_ports_except(model, ["in", "out"])
+    return canonical_gauge(model)
 end
 
 #######################################################
@@ -162,9 +162,9 @@ end
 
 if show_results
     density(m) = count(!iszero, m)/(size(m,1) * size(m,2))
-    casc = casc_from_model(10, δ)
-    push!(casc.operations, open_ports_except => ["in", "out"])
-    println("pso matrix densities: $(map(density, get_Y(PSOModel(casc))))")
+    model = cascade_and_unite(PSOModel.(components_from_model(10, δ)))
+    model = short_ports(model, ["p/short_0", "p/short_1", "r0/short", "r1/short"])
+    println("pso matrix densities: $(map(density, get_Y(model)))")
 end
 
 #######################################################
@@ -323,10 +323,12 @@ end
 #######################################################
 
 function eigenvals(stub_num::Int, discretization::Real)
-    casc = casc_from_model(stub_num, discretization)
-    push!(casc.components, ParallelComponent("in", 0, 1/Z0, 0))
-    push!(casc.components, ParallelComponent("out", 0, 1/Z0, 0))
-    pso = PSOModel(casc)
+    comp = components_from_model(stub_num, discretization)
+    model = cascade_and_unite(PSOModel.(comp))
+    model = short_ports(model, ["p/short_0", "p/short_1", "r0/short", "r1/short"])
+    terminations = PSOModel.([ParallelComponent("in",  0, 1/Z0, 0),
+                              ParallelComponent("out", 0, 1/Z0, 0)])
+    pso = cascade_and_unite([model; terminations])
     eigenvalues, eigenvectors = lossy_modes_dense(pso, min_freq=4e9, max_freq=8e9)
     port_inds = ports_to_indices(pso, "p/middle", "r0/open", "r1/open")
     mode_inds = AdmittanceModels.match_vectors(get_P(pso)[:, port_inds], eigenvectors)

@@ -53,7 +53,7 @@ function partial_copy(pso::PSOModel{T, U};
     return PSOModel(Y..., P, Q, ports)
 end
 
-compatible(psos::AbstractVector{PSOModel{T, U}}) where {T, U} = true
+compatible(psos::AbstractVector{<:PSOModel}) = true
 
 function canonical_gauge(pso::PSOModel)
     fullP = collect(pso.P)

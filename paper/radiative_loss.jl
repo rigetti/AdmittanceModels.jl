@@ -47,18 +47,22 @@ begin
     tline_params = (L=L, x0=x0, F=F, y0=y0, cc=cc)
 end
 
-function create_tline_cascade(δ::Real)
+function create_tline_components(δ::Real)
     resonator = TransmissionLine(["qr_coupler", "er_coupler_0", "mode_2_max", "short"],
                                  ν, Z0, L, locations=[x0, 2*L/3], δ=δ)
     environment = TransmissionLine(["in", "er_coupler_1", "out"],
                                    ν, Z0, F, locations=[y0], δ=δ)
     er_coupler = SeriesComponent("er_coupler_0", "er_coupler_1", 0, 0, cc)
     qr_coupler = SeriesComponent("qubit", "qr_coupler", 0, 0, cg)
-    components = [resonator, environment, er_coupler, qr_coupler]
-    return Cascade(components, [short_ports => ["short"]])
+    return [resonator, environment, er_coupler, qr_coupler]
 end
+create_tline_pso(δ) = short_ports(
+    cascade_and_unite(PSOModel.(create_tline_components(δ))), "short")
 
-tline_cascade = create_tline_cascade(δ)
+tline_cascade_comp    = create_tline_components(δ)
+tline_cascade_pso     = create_tline_pso(δ)
+tline_cascade_bbox(ω) = short_ports(
+    cascade_and_unite(Blackbox.(Ref(ω), create_tline_components(δ))), "short")
 
 #######################################################
 # Purcell filter model
@@ -73,19 +77,22 @@ begin
     pfilter_params = (L=L, x0=x0, F=F, y0=y0, cc=cc, st=st)
 end
 
-function create_pfilter_cascade(δ::Real)
+function create_pfilter_components(δ::Real)
     resonator = TransmissionLine(["qr_coupler", "er_coupler_0", "mode_2_max", "short 1"],
                                  ν, Z0, L, locations=[x0, 2*L/3], δ=δ)
     environment = TransmissionLine(["short 2", "in", "er_coupler_1", "out", "short 3"],
                                    ν, Z0, F, locations=[st, y0, F-st], δ=δ)
     er_coupler = SeriesComponent("er_coupler_0", "er_coupler_1", 0, 0, cc)
     qr_coupler = SeriesComponent("qubit", "qr_coupler", 0, 0, cg)
-    components = [resonator, environment, er_coupler, qr_coupler]
-    return Cascade(components, [short_ports => ["short 1", "short 2", "short 3"]])
+    return [resonator, environment, er_coupler, qr_coupler]
 end
+create_pfilter_pso(δ) = short_ports(cascade_and_unite(
+    PSOModel.(create_pfilter_components(δ))), ["short 1", "short 2", "short 3"])
 
-pfilter_cascade = create_pfilter_cascade(δ)
-
+pfilter_cascade_comp = create_pfilter_components(δ)
+pfilter_cascade_pso  = create_pfilter_pso(δ)
+pfilter_cascade_bbox(ω) = short_ports(cascade_and_unite(
+    Blackbox.(Ref(ω), pfilter_cascade_comp)), ["short 1", "short 2", "short 3"])
 #######################################################
 # Scattering parameters with qubit
 #######################################################
@@ -100,19 +107,27 @@ begin
          range(17.76, stop=17.85, length=100 * factor); # 2nd mode tline
          range(17.85, stop=25, length=10 * factor)] * 2π * 1e9
     qubit = ParallelComponent("qubit", 1/lj, 0, cj)
-    components = [tline_cascade.components; qubit]
-    operations = [tline_cascade.operations; open_ports_except => ["in", "out"]]
-    tline_casc = Cascade(components, operations)
-    tline_pso_bbox = Blackbox(ω, PSOModel(tline_casc))
+
+    tline_pso_bbox = let
+        model = cascade_and_unite(tline_cascade_pso, PSOModel(qubit))
+        model = open_ports_except(model, ["in", "out"])
+        Blackbox(ω, model)
+    end
     tline_pso_bbox_s = [x[1,2] for x in scattering_matrices(tline_pso_bbox, [Z0, Z0])]
-    tline_bbox = Blackbox(ω, tline_casc)
+    tline_bbox = let
+        model = cascade_and_unite(tline_cascade_bbox(ω), Blackbox(ω, qubit))
+        model = open_ports_except(model, ["in", "out"])
+    end
     tline_bbox_s = [x[1,2] for x in scattering_matrices(tline_bbox, [Z0, Z0])]
-    components = [pfilter_cascade.components; qubit]
-    operations = [pfilter_cascade.operations; open_ports_except => ["in", "out"]]
-    pfilter_casc = Cascade(components, operations)
-    pfilter_pso_bbox = Blackbox(ω, PSOModel(pfilter_casc))
+    pfilter_pso_bbox = let
+        model = cascade_and_unite(pfilter_cascade_pso, PSOModel(qubit))
+        Blackbox(ω, open_ports_except(model, ["in", "out"]))
+    end
     pfilter_pso_bbox_s = [x[1,2] for x in scattering_matrices(pfilter_pso_bbox, [Z0, Z0])]
-    pfilter_bbox = Blackbox(ω, pfilter_casc)
+    pfilter_bbox = let
+        model = cascade_and_unite(pfilter_cascade_bbox(ω), Blackbox(ω, qubit))
+        open_ports_except(model, ["in", "out"])
+    end
     pfilter_bbox_s = [x[1,2] for x in scattering_matrices(pfilter_bbox, [Z0, Z0])]
 end
 
@@ -135,26 +150,27 @@ end
 # Find effective capacitance
 #######################################################
 
-resistors = [ParallelComponent(name, 0, 1/Z0, 0) for name in ["in", "out"]]
-function model_and_admittances(ω::Vector{<:Real}, casc::Cascade)
-    components = [casc.components; resistors]
-    operations = [casc.operations; [open_ports_except => ["qubit"]]]
-    bbox = Blackbox(ω, Cascade(components, operations)) |> canonical_gauge
-    Y = [x[1,1] for x in admittance_matrices(bbox)]
-    pso = PSOModel(Cascade(components, casc.operations))
-    return pso, Y
+function terminated(model::PSOModel)
+    resistors = ParallelComponent.(["in", "out"], 0, 1/Z0, 0)
+    return cascade_and_unite([model; PSOModel.(resistors)])
+end
+function admittances(model::Blackbox)
+    resistors = ParallelComponent.(["in", "out"], 0, 1/Z0, 0)
+    model = cascade_and_unite([model; Blackbox.(Ref(model.ω), resistors)])
+    bb = canonical_gauge(open_ports_except(model, "qubit"))
+    return [x[1,1] for x in admittance_matrices(bb)]
 end
 
 begin
     fit_ω = collect(range(0.1e9, stop=2.5e9, length=run_fast ? 100 : 1000)) * 2π
     plot_ω = collect(range(0.01e9, stop=10e9, length=run_fast ? 100 : 1000)) * 2π
     linreg(x, y) = hcat(fill!(similar(x), 1), x) \ y
-    tline_pso, Y = model_and_admittances(fit_ω, tline_cascade)
+    tline_pso, Y = terminated(tline_cascade_pso), admittances(tline_cascade_bbox(fit_ω))
     _, tline_slope = linreg(fit_ω, imag.(Y))
-    _, tline_Y = model_and_admittances(plot_ω, tline_cascade)
-    _, Y = model_and_admittances(fit_ω, pfilter_cascade)
+    tline_Y = admittances(tline_cascade_bbox(plot_ω))
+    Y = admittances(pfilter_cascade_bbox(fit_ω))
     _, pfilter_slope = linreg(fit_ω, imag.(Y))
-    pfilter_pso, pfilter_Y = model_and_admittances(plot_ω, tline_cascade)
+    pfilter_pso, pfilter_Y = terminated(tline_cascade_pso), admittances(tline_cascade_bbox(plot_ω))
     tline_eff_capacitance = tline_slope + cj
     pfilter_eff_capacitance = pfilter_slope + cj
 end
@@ -210,8 +226,8 @@ function eigenmodes(lj::Real, pso::PSOModel)
     return eigenvalues[mode_inds]
 end
 
-function eigenmodes(casc::Cascade, eff_capacitance::Real, ω::Vector{<:Real})
-    pso, Y = model_and_admittances(ω, casc)
+function eigenmodes(casc::PSOModel, eff_capacitance::Real, ω::Vector{<:Real})
+    pso, Y = terminated(casc), admittances(Blackbox(ω, casc))
     T1_Y = eff_capacitance ./ real.(Y)
     ljs = (1 ./ (ω .^2 * eff_capacitance))
     if show_results
@@ -223,7 +239,7 @@ function eigenmodes(casc::Cascade, eff_capacitance::Real, ω::Vector{<:Real})
 end
 
 ω = 2π * get_bare_qubit_freqs(run_fast ? 10 : 120)
-tline_λs, tline_T1_Y = eigenmodes(tline_cascade, tline_eff_capacitance, ω)
+tline_λs, tline_T1_Y = eigenmodes(tline_cascade_pso, tline_eff_capacitance, ω)
 
 if show_results
     plot([scatter(x=ω/(2π*1e9), y=imag.(tline_λs[i,:])/(2π*1e9), name="$i",
@@ -245,7 +261,7 @@ if write_data
     CSV.write(joinpath(output_folder, "tline_eigenmodes.csv"), df)
 end
 
-pfilter_λs, pfilter_T1_Y = eigenmodes(pfilter_cascade, pfilter_eff_capacitance, ω)
+pfilter_λs, pfilter_T1_Y = eigenmodes(pfilter_cascade_pso, pfilter_eff_capacitance, ω)
 
 if show_results
     plot([scatter(x=ω/(2π*1e9), y=imag.(pfilter_λs[i,:])/(2π*1e9), name="$i",
@@ -281,7 +297,7 @@ end
 
 if !run_fast
     δs = [60, 50, 40] * 1e-6
-    tline_λ_vects = [eigenmodes(create_tline_cascade(δ), tline_eff_capacitance, ω)[1] for δ in δs]
+    tline_λ_vects = [eigenmodes(create_tline_pso(δ), tline_eff_capacitance, ω)[1] for δ in δs]
 
     if write_data
         npzwrite(joinpath(output_folder, "tline_eigenvalues.npy"), cat(tline_λ_vects..., dims=3))
@@ -297,7 +313,7 @@ if !run_fast
             Layout(xaxis_title="bare qubit freq", yaxis_title="% error", yaxis_type="log", title="tline freqs"))
     end
 
-    pfilter_λ_vects = [eigenmodes(create_pfilter_cascade(δ), pfilter_eff_capacitance, ω)[1] for δ in δs]
+    pfilter_λ_vects = [eigenmodes(create_pfilter_pso(δ), pfilter_eff_capacitance, ω)[1] for δ in δs]
 
     if write_data
         npzwrite(joinpath(output_folder, "pfilter_eigenvalues.npy"), cat(pfilter_λ_vects..., dims=3))
