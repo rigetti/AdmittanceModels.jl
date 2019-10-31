@@ -16,79 +16,157 @@ export cascade, unite_vertices, cascade_and_unite
 
 SparseMat = SparseMatrixCSC{Float64,Int}
 
+"""
+    struct Circuit{T}
+Model of a circuit, containing matrix representations of the inverse inductance,
+conductance, and capacitance between any pair of named vertices. All vertices are
+named.
+
+## Fields
+- `k`: inverse inductance matrix
+- `g`: conductance matrix
+- `c`: capacitance matrix
+- `vertices`: vector of uniquely named vertices
+
+## Note
+The matrices are not in the conventional form, i.e. `c` is not a Maxwell capacitance
+matrix. Rather, `c[i,j]` is only the direct capacitance between vertices `i` and `j`.
+`iszero(c[i,i])` is demanded for all `i`.
+"""
 struct Circuit{T}
     k::SparseMat # inverse inductances
     g::SparseMat # conductances
     c::SparseMat # capacitances
     vertices::UniqueVector{T}
     function Circuit{T}(k::SparseMat, g::SparseMat, c::SparseMat,
-        vertices::UniqueVector{T}) where T
-        for m in [k, g, c]
-            @assert issymmetric(m)
+            vertices::UniqueVector{T}) where {T}
+        for m in (k, g, c)
+            @assert isreal(m) && issymmetric(m)
             @assert size(m) == (length(vertices), length(vertices))
-            @assert all(diag(m) .== 0)
-            @assert all(m .>= 0)
+            @assert all(iszero.(diag(m)))
+            @assert all(m .>= zero(eltype(m)))
         end
-        return new{T}(k, g, c, vertices)
+        return new(k, g, c, vertices)
     end
 end
 
-Circuit(k::SparseMat, g::SparseMat, c::SparseMat, vertices::AbstractVector{T}) where T =
-    Circuit{T}(k, g, c, UniqueVector(vertices))
+"""
+    Circuit(k::AbstractMatrix, g::AbstractMatrix, c::AbstractMatrix,
+        vertices::AbstractVector{T}) where {T}
+    Circuit(vertices::AbstractVector)
 
-Circuit(k::AbstractMatrix{<:Real}, g::AbstractMatrix{<:Real}, c::AbstractMatrix{<:Real},
-    vertices::AbstractVector) = Circuit(sparse(1.0 * k), sparse(1.0 * g), sparse(1.0 * c),
-    vertices)
+Construct a circuit with named vertices, defaulting to zero inverse inductance,
+conductance, and capacitance between the vertices if the matrices are not given.
+"""
+function Circuit(k::AbstractMatrix, g::AbstractMatrix, c::AbstractMatrix,
+        vertices::AbstractVector{T}) where {T}
+    return Circuit{T}(sparse(float(k)), sparse(float(g)), sparse(float(c)),
+        UniqueVector(vertices))
+end
 
-function Circuit(vertices::AbstractVector{T}) where T
+function Circuit(vertices::AbstractVector)
     z() = spzeros(length(vertices), length(vertices))
     return Circuit(z(), z(), z(), vertices)
 end
 
-function partial_copy(circ::Circuit{T};
-   k::Union{SparseMat, Nothing}=nothing,
-   g::Union{SparseMat, Nothing}=nothing,
-   c::Union{SparseMat, Nothing}=nothing,
-   vertices::Union{AbstractVector{U}, Nothing}=nothing) where {T, U}
-   k = k == nothing ? circ.k : k
-   g = g == nothing ? circ.g : g
-   c = c == nothing ? circ.c : c
-   vertices = vertices == nothing ? circ.vertices : vertices
+"""
+    partial_copy(circ::Circuit;
+       k::Union{AbstractMatrix, Nothing} = nothing,
+       g::Union{AbstractMatrix, Nothing} = nothing,
+       c::Union{AbstractMatrix, Nothing} = nothing,
+       vertices::Union{AbstractVector, Nothing} = nothing)
+
+Create a new `Circuit` with the same fields except those given as keyword arguments.
+"""
+function partial_copy(circ::Circuit;
+       k::Union{AbstractMatrix, Nothing} = nothing,
+       g::Union{AbstractMatrix, Nothing} = nothing,
+       c::Union{AbstractMatrix, Nothing} = nothing,
+       vertices::Union{AbstractVector, Nothing} = nothing)
+   k = isnothing(k) ? circ.k : k
+   g = isnothing(g) ? circ.g : g
+   c = isnothing(c) ? circ.c : c
+   vertices = isnothing(vertices) ? circ.vertices : vertices
    return Circuit(k, g, c, vertices)
 end
 
+"""
+    ==(circ1::Circuit, circ2::Circuit)
+Test whether two circuits have the same circuit components and named vertices
+(in order).
+"""
 # don't remove space between Base. and ==
 function Base. ==(circ1::Circuit, circ2::Circuit)
-    if typeof(circ1) != typeof(circ2)
-        return false
-    end
-    return all([getfield(circ1, name) == getfield(circ2, name)
-        for name in fieldnames(Circuit)])
+    return all(getfield(circ1, name) == getfield(circ2, name)
+        for name in fieldnames(Circuit))
 end
 
+"""
+    isapprox(circ1::Circuit, circ2::Circuit)
+Tests for approximate equality of the circuits' `k`, `g`, `c` matrices.
+"""
 function Base.isapprox(circ1::Circuit, circ2::Circuit)
-    if typeof(circ1) != typeof(circ2)
-        return false
-    end
-    return all([getfield(circ1, name) ≈ getfield(circ2, name)
-        for name in fieldnames(Circuit)[1:end-1]])
+    return all(getfield(circ1, name) ≈ getfield(circ2, name)
+        for name in fieldnames(Circuit)[1:end-1])
 end
 
 matrices(c::Circuit) = [c.k, c.g, c.c]
 
-function get_matrix_element(c::Circuit, matrix_name::Symbol, v0, v1)
+"""
+    get_matrix_element(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T) where {T}
+Returns a matrix element from one of the circuit matrices corresponding to the
+edge between vertices with names `v0` and `v1`. `matrix_name` must be in
+`(:k, :g, :c)`.
+"""
+function get_matrix_element(c::Circuit{T}, matrix_name::Symbol, v0::T, v1::T) where {T}
+    @assert matrix_name in (:k, :g, :c)
     i0 = findfirst(isequal(v0), c.vertices)
     i1 = findfirst(isequal(v1), c.vertices)
     return getfield(c, matrix_name)[i0, i1]
 end
 
+"""
+    get_inv_inductance(c::Circuit, v0, v1)
+Returns the inverse of the inductance on the edge between between vertices `v0` and `v1`.
+"""
 get_inv_inductance(c::Circuit, v0, v1) = get_matrix_element(c, :k, v0, v1)
+
+"""
+    get_inductance(c::Circuit, v0, v1)
+Returns the inductance on the edge between between vertices `v0` and `v1`.
+"""
 get_inductance(c::Circuit, v0, v1) = inv(get_inv_inductance(c, v0, v1))
+
+"""
+    get_conductance(c::Circuit, v0, v1)
+Returns the conductance on the edge between between vertices `v0` and `v1`.
+"""
 get_conductance(c::Circuit, v0, v1) = get_matrix_element(c, :g, v0, v1)
+
+"""
+    get_resistance(c::Circuit, v0, v1)
+Returns the resistance on the edge between between vertices `v0` and `v1`.
+"""
 get_resistance(c::Circuit, v0, v1) = inv(get_conductance(c, v0, v1))
+
+"""
+    get_capacitance(c::Circuit, v0, v1)
+Returns the capacitance on the edge between between vertices `v0` and `v1`.
+"""
 get_capacitance(c::Circuit, v0, v1) = get_matrix_element(c, :c, v0, v1)
+
+"""
+    get_elastance(c::Circuit, v0, v1)
+Returns the elastance on the edge between between vertices `v0` and `v1`.
+"""
 get_elastance(c::Circuit, v0, v1) = inv(get_capacitance(c, v0, v1))
 
+"""
+    set_matrix_element!(c::Circuit, matrix_name::Symbol, v0, v1, value)
+Sets a matrix element in one of the circuit matrices corresponding to the
+edge between vertices with names `v0` and `v1`. `matrix_name` must be in
+`(:k, :g, :c)`.
+"""
 function set_matrix_element!(c::Circuit, matrix_name::Symbol, v0, v1, value)
     @assert value >= zero(value)
     @assert !isinf(value)
@@ -101,21 +179,45 @@ function set_matrix_element!(c::Circuit, matrix_name::Symbol, v0, v1, value)
     return c
 end
 
+"""
+    set_inv_inductance!(c::Circuit, v0, v1)
+Sets the inverse of the inductance on the edge between between vertices `v0` and `v1`.
+"""
 set_inv_inductance!(c::Circuit, v0, v1, value) =
     set_matrix_element!(c, :k, v0, v1, value)
 
+"""
+    set_inductance!(c::Circuit, v0, v1)
+Sets the inductance on the edge between between vertices `v0` and `v1`.
+"""
 set_inductance!(c::Circuit, v0, v1, value) =
     set_inv_inductance!(c, v0, v1, inv(value))
 
+"""
+    set_conductance!(c::Circuit, v0, v1)
+Sets the conductance on the edge between between vertices `v0` and `v1`.
+"""
 set_conductance!(c::Circuit, v0, v1, value) =
     set_matrix_element!(c, :g, v0, v1, value)
 
+"""
+    set_resistance!(c::Circuit, v0, v1)
+Sets the resistance on the edge between between vertices `v0` and `v1`.
+"""
 set_resistance!(c::Circuit, v0, v1, value) =
     set_conductance!(c, v0, v1, inv(value))
 
+"""
+    set_capacitance!(c::Circuit, v0, v1)
+Sets the capacitance on the edge between between vertices `v0` and `v1`.
+"""
 set_capacitance!(c::Circuit, v0, v1, value) =
     set_matrix_element!(c, :c, v0, v1, value)
 
+"""
+    set_elastance!(c::Circuit, v0, v1)
+Sets the elastance on the edge between between vertices `v0` and `v1`.
+"""
 set_elastance!(c::Circuit, v0, v1, value) =
     set_capacitance!(c, v0, v1, inv(value))
 
@@ -123,22 +225,37 @@ set_elastance!(c::Circuit, v0, v1, value) =
 # spanning trees
 #######################################################
 
+"""
+    struct SpanningTree{T}
+A spanning tree of a graph with vertices of type `T`.
+
+## Fields
+- `root`: the root of the spanning tree
+- `edges`: a vector of tuples `(vertex1, vertex2)` defining tree edges.
+"""
 struct SpanningTree{T}
     root::T
     edges::Vector{Tuple{T, T}}
 end
 
-# depth-1 spanning tree
+"""
+    SpanningTree(vertices::AbstractVector{T}) where T
+Construct a depth-1 spanning tree from a vector of vertices of a complete graph,
+with the first vertex taken as the root of the spanning tree.
+"""
 function SpanningTree(vertices::AbstractVector{T}) where T
-    @assert length(vertices) > 0
-    root = vertices[1]
-    edges = [(v, root) for v in vertices[2:end]]
+    @assert !isempty(vertices)
+    root = first(vertices)
+    edges = [(v, root) for v in vertices[eachindex(vertices)[2:end]]]
     return SpanningTree{T}(root, edges)
 end
 
-# T matrix in section IIC with a given spanning tree.
-# The direction of the edges passed in is ignored and enforced as being outwards
-# from the root
+"""
+    coordinate_matrix(c::Circuit{T}, tree::SpanningTree{T}) where T
+Returns the `T` matrix described in section IIC of arXiv:1810.11510 for a
+circuit `c` with a given spanning `tree`. The direction of the edges passed in
+is ignored and enforced as being outwards from the root.
+"""
 function coordinate_matrix(c::Circuit{T}, tree::SpanningTree{T}) where T
     V = length(c.vertices)
     @assert tree.root in c.vertices
@@ -165,30 +282,49 @@ function coordinate_matrix(c::Circuit{T}, tree::SpanningTree{T}) where T
     return hcat([mapping[v] for v in c.vertices]...)
 end
 
-# T matrix in section IIC for depth-1 spanning tree
-coordinate_matrix(num_vertices::Int) = transpose([spzeros(1, num_vertices-1); I])
+"""
+    coordinate_matrix(num_vertices::Int)
+Returns the `T` matrix described in section IIC of arXiv:1810.11510 for a
+circuit with `num_vertices`, where the spanning tree is depth-1 and rooted at
+the first vertex of the circuit.
+"""
+coordinate_matrix(num_vertices::Int) = [spzeros(num_vertices - 1) I]
+
+"""
+    coordinate_matrix(num_vertices::Int)
+Returns the `T` matrix described in section IIC of arXiv:1810.11510 for a
+circuit `c`, where the spanning tree is depth-1 and rooted at the first vertex
+of the circuit.
+"""
 coordinate_matrix(c::Circuit) = coordinate_matrix(length(c.vertices))
 
 #######################################################
 # cascade and unite
 #######################################################
 
-function cascade(circs::AbstractVector{Circuit{T}}) where T
+"""
+    cascade(circs::AbstractVector{<:Circuit})
+    cascade(circs::Circuit...)
+Cascade the circuits into one larger block diagonal circuit.
+"""
+function cascade(circs::AbstractVector{<:Circuit})
     circuit_matrices = [cat(m..., dims=(1,2))
         for m in zip([matrices(circ) for circ in circs]...)]
     vertices = vcat([circ.vertices for circ in circs]...)
     return Circuit(circuit_matrices..., vertices)
 end
+cascade(circs::Circuit...) = cascade(collect(circs))
 
-cascade(circs::Vararg{Circuit{T}}) where T = cascade(collect(circs))
-
+"""
+    unite_vertices(circ::Circuit{T}, vertices::AbstractVector{T}) where T
+    unite_vertices(circ::Circuit{T}, vertices::T...) where T
+Unite the given vertices of a circuit.
+"""
 function unite_vertices(circ::Circuit{T}, vertices::AbstractVector{T}) where T
-    if length(vertices) <= 1
-        return circ
-    end
+    length(vertices) <= 1 && return circ
     n = length(circ.vertices)
     vertex_inds = [findfirst(isequal(v), circ.vertices) for v in vertices]
-    keep_inds = filter(x -> !(x in vertex_inds[2:end]), 1:n)
+    keep_inds = filter(!in(vertex_inds[2:end]), 1:n)
     function unite_indices(mat::AbstractMatrix)
         m = copy(mat)
         ind1 = vertex_inds[1]
@@ -205,15 +341,18 @@ function unite_vertices(circ::Circuit{T}, vertices::AbstractVector{T}) where T
     circuit_matrices = [unite_indices(mat) for mat in matrices(circ)]
     return Circuit(circuit_matrices..., circ.vertices[keep_inds])
 end
-
-unite_vertices(circ::Circuit{T}, vertices::Vararg{T}) where T =
+unite_vertices(circ::Circuit{T}, vertices::T...) where T =
     unite_vertices(circ, collect(vertices))
 
-# cascade all circuits and unite vertices with the same name
-function cascade_and_unite(circs::AbstractVector{Circuit{T}}) where T
-    @assert length(circs) >= 1
+"""
+    cascade_and_unite(models::AbstractVector{<:Circuit})
+    cascade_and_unite(models::Circuit...)
+Cascade all circuits and unite ports with the same name.
+"""
+function cascade_and_unite(circs::AbstractVector{<:Circuit})
+    @assert !isempty(circs)
     if length(circs) == 1
-        return circs[1]
+        return first(circs)
     end
     # number the vertices so that the names are all distinct and then cascade
     vertex_number = 1
@@ -233,5 +372,4 @@ function cascade_and_unite(circs::AbstractVector{Circuit{T}}) where T
     # remove numbering
     return Circuit(matrices(circ)..., [v[2] for v in circ.vertices])
 end
-
-cascade_and_unite(circs::Vararg{Circuit{T}}) where T = cascade_and_unite(collect(circs))
+cascade_and_unite(circs::Circuit...) = cascade_and_unite(collect(circs))

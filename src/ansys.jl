@@ -41,7 +41,6 @@ matrix elements. We expect these to be strings `parse(Float64, _)` can handle.
 =#
 
 using LinearAlgebra: diagind
-using Compat
 
 """
     parse_value_and_unit(s::AbstractString)

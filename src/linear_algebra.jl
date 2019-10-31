@@ -6,7 +6,7 @@ using MatrixNetworks: bfs, scomponents
 export sparse_nullbasis, nullbasis
 
 """
-    closest_permutation(mat::AbstractMatrix{<:Real})
+    closest_permutation(mat::AbstractMatrix)
 
 Given an `m × n` matrix `mat` where `m ≥ n`, find an assignment of rows to columns such
 that each column is assigned a distinct row and the absolute values of the entries

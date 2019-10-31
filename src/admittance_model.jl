@@ -4,8 +4,12 @@ export apply_transform, cascade, cascade_and_unite, ports_to_indices
 export unite_ports, open_ports, open_ports_except, short_ports, short_ports_except
 
 """
-An abstract representation of a linear mapping from inputs `x` to outputs `y` of the form
-`YΦ = Px`, `y = QᵀΦ`. Subtypes U <: AdmittanceModel are expected to implement:
+    abstract type AdmittanceModel{T}
+
+An abstract representation of a linear mapping from inputs `x` to outputs `y` of
+the form `YΦ = Px`, `y = QᵀΦ`. The type parameter `T` is the type of a port name
+object (typically `String`, `Symbol`, or `Int`). Subtypes `U <: AdmittanceModel`
+are expected to implement:
 
     get_Y(am::U)
     get_P(am::U)
@@ -83,21 +87,25 @@ Apply an invertible transformation that takes the model to coordinates in which
 """
 function canonical_gauge end
 
+"""
+    ==(am1::AdmittanceModel, am2::AdmittanceModel)
+
+Test whether two `AdmittanceModel`s are equal. Two models must be of the same type
+to be equal, as well as have the same admittances, port matrices, and port names.
+"""
 # don't remove space between Base. and ==
-function Base. ==(am1::AdmittanceModel, am2::AdmittanceModel)
-    t = typeof(am1)
-    if typeof(am2) != t
-        return false
-    end
-    return all([getfield(am1, name) == getfield(am2, name) for name in fieldnames(t)])
+function Base. ==(am1::T, am2::T) where {T <: AdmittanceModel}
+    return all(getfield(am1, name) == getfield(am2, name) for name in fieldnames(T))
 end
 
-function Base.isapprox(am1::AdmittanceModel, am2::AdmittanceModel)
-    t = typeof(am1)
-    if typeof(am2) != t
-        return false
-    end
-    return all([getfield(am1, name) ≈ getfield(am2, name) for name in fieldnames(t)])
+"""
+    isapprox(am1::AdmittanceModel, am2::AdmittanceModel)
+
+Test whether two `AdmittanceModel`s are approximately equal.
+"""
+Base.isapprox(am1::AdmittanceModel, am2::AdmittanceModel) = false
+function Base.isapprox(am1::T, am2::T) where {T <: AdmittanceModel}
+    return all(getfield(am1, name) ≈ getfield(am2, name) for name in fieldnames(T))
 end
 
 """
@@ -113,13 +121,13 @@ function apply_transform(am::AdmittanceModel, transform::AbstractMatrix{<:Number
 end
 
 """
-    cascade(ams::AbstractVector{U}) where {T, U <: AdmittanceModel{T}}
-    cascade(ams::Vararg{U}) where {T, U <: AdmittanceModel{T}}
+    cascade(ams::AbstractVector{<:AdmittanceModel})
+    cascade(ams::AdmittanceModel...)
 
 Cascade the models into one larger block diagonal model.
 """
-function cascade(ams::AbstractVector{U}) where {T, U <: AdmittanceModel{T}}
-    @assert length(ams) >= 1
+function cascade(ams::AbstractVector{<:AdmittanceModel})
+    @assert !isempty(ams)
     if length(ams) == 1
         return ams[1]
     end
@@ -130,36 +138,32 @@ function cascade(ams::AbstractVector{U}) where {T, U <: AdmittanceModel{T}}
     ports = vcat([get_ports(am) for am in ams]...)
     return partial_copy(ams[1], Y=Y, P=P, Q=Q, ports=ports)
 end
-
-cascade(ams::Vararg{U}) where {T, U <: AdmittanceModel{T}} = cascade(collect(ams))
+cascade(ams::AdmittanceModel...) = cascade(collect(ams))
 
 """
-    ports_to_indices(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    ports_to_indices(am::AdmittanceModel{T}, ports::Vararg{T}) where T
+    ports_to_indices(am::AdmittanceModel, ports::AbstractVector)
+    ports_to_indices(am::AdmittanceModel, ports...)
 
 Find the indices corresponding to given ports.
 """
-function ports_to_indices(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
+function ports_to_indices(am::AdmittanceModel, ports::AbstractVector)
     am_ports = get_ports(am)
     return [findfirst(isequal(p), am_ports) for p in ports]
 end
-
-ports_to_indices(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
-    ports_to_indices(am, collect(ports))
+ports_to_indices(am::AdmittanceModel, ports...) = ports_to_indices(am, collect(ports))
 
 """
-    unite_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    unite_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T
+    unite_ports(am::AdmittanceModel, ports::AbstractVector)
+    unite_ports(am::AdmittanceModel, ports...)
 
 Unite the given ports into one port.
 """
-function unite_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
+function unite_ports(am::AdmittanceModel, ports::AbstractVector)
     if length(ports) <= 1
         return am
     end
     port_inds = ports_to_indices(am, ports)
-    keep_inds = filter(x -> !(x in port_inds[2:end]),
-        1:length(get_ports(am))) # keep the first port
+    keep_inds = filter(!in(port_inds[2:end]), 1:length(get_ports(am))) # keep the first port
     P = get_P(am)
     first_vector = P[:, port_inds[1]]
     constraint_mat = transpose(hcat([first_vector - P[:, i] for i in port_inds[2:end]]...))
@@ -167,90 +171,79 @@ function unite_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
     return partial_copy(constrained_am, P=get_P(constrained_am)[:, keep_inds],
         Q=get_Q(constrained_am)[:, keep_inds], ports=get_ports(constrained_am)[keep_inds])
 end
-
-unite_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
-    unite_ports(am, collect(ports))
+unite_ports(am::AdmittanceModel, ports...) = unite_ports(am, collect(ports))
 
 """
-    open_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    open_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T
+    open_ports(am::AdmittanceModel, ports::AbstractVector)
+    open_ports(am::AdmittanceModel, ports...)
 
 Remove the given ports.
 """
-function open_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
+function open_ports(am::AdmittanceModel, ports::AbstractVector)
     if length(ports) == 0
         return am
     end
     port_inds = ports_to_indices(am, ports)
-    keep_inds = filter(x -> !(x in port_inds), 1:length(get_ports(am)))
+    keep_inds = filter(!in(port_inds), 1:length(get_ports(am)))
     return partial_copy(am, P=get_P(am)[:, keep_inds],
         Q=get_Q(am)[:, keep_inds], ports=get_ports(am)[keep_inds])
 end
-
-open_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
-    open_ports(am, collect(ports))
+open_ports(am::AdmittanceModel, ports...) = open_ports(am, collect(ports))
 
 """
-    open_ports_except(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    open_ports_except(am::AdmittanceModel{T}, ports::Vararg{T}) where T
+    open_ports_except(am::AdmittanceModel, ports::AbstractVector)
+    open_ports_except(am::AdmittanceModel, ports...)
 
 Remove all ports except those specified.
 """
-function open_ports_except(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    return open_ports(am, filter(x -> !(x in ports), get_ports(am)))
+function open_ports_except(am::AdmittanceModel, ports::AbstractVector)
+    return open_ports(am, filter(!in(ports), get_ports(am)))
 end
-
-open_ports_except(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
-    open_ports_except(am, collect(ports))
+open_ports_except(am::AdmittanceModel, ports...) = open_ports_except(am, collect(ports))
 
 """
-    short_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    short_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T
+    short_ports(am::AdmittanceModel, ports::AbstractVector)
+    short_ports(am::AdmittanceModel, ports...)
 
 Replace the given ports by short circuits.
 """
-function short_ports(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    if length(ports) == 0
-        return am
-    end
+function short_ports(am::AdmittanceModel, ports::AbstractVector)
+    isempty(ports) && return am
     port_inds = ports_to_indices(am, ports)
-    keep_inds = filter(x -> !(x in port_inds), 1:length(get_ports(am)))
+    keep_inds = filter(!in(port_inds), 1:length(get_ports(am)))
     constraint_mat = transpose(hcat([get_P(am)[:, i] for i in port_inds]...))
     constrained_am = apply_transform(am, nullbasis(constraint_mat))
     return partial_copy(constrained_am, P=get_P(constrained_am)[:, keep_inds],
         Q=get_Q(constrained_am)[:, keep_inds], ports=get_ports(constrained_am)[keep_inds])
 end
-
-short_ports(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
-    short_ports(am, collect(ports))
+short_ports(am::AdmittanceModel, ports...) = short_ports(am, collect(ports))
 
 """
-    short_ports_except(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    short_ports_except(am::AdmittanceModel{T}, ports::Vararg{T}) where T
+    short_ports_except(am::AdmittanceModel, ports::AbstractVector)
+    short_ports_except(am::AdmittanceModel, ports...)
 
 Replace all ports with short circuits, except those specified.
 """
-function short_ports_except(am::AdmittanceModel{T}, ports::AbstractVector{T}) where T
-    return short_ports(am, filter(x -> !(x in ports), get_ports(am)))
+function short_ports_except(am::AdmittanceModel, ports::AbstractVector)
+    return short_ports(am, filter(!in(ports), get_ports(am)))
 end
-
-short_ports_except(am::AdmittanceModel{T}, ports::Vararg{T}) where T =
+short_ports_except(am::AdmittanceModel, ports...) =
     short_ports_except(am, collect(ports))
 
 """
-    cascade_and_unite(models::AbstractVector{U}) where {T, U <: AdmittanceModel{T}}
-    cascade_and_unite(models::Vararg{U}) where {T, U <: AdmittanceModel{T}}
+    cascade_and_unite(models::AbstractVector{<:AdmittanceModel})
+    cascade_and_unite(models::AdmittanceModel...)
 
 Cascade all models and unite ports with the same name.
 """
-function cascade_and_unite(models::AbstractVector{U}) where {T, U <: AdmittanceModel{T}}
+function cascade_and_unite(models::AbstractVector{<:AdmittanceModel})
     @assert length(models) >= 1
     if length(models) == 1
         return models[1]
     end
     # number the ports so that the names are all distinct and then cascade
     port_number = 1
-    function rename(model::U)
+    function rename(model)
         ports = [(port_number + i - 1, port) for (i, port) in enumerate(get_ports(model))]
         port_number += length(ports)
         return partial_copy(model, ports=ports)
@@ -265,6 +258,4 @@ function cascade_and_unite(models::AbstractVector{U}) where {T, U <: AdmittanceM
     # remove numbering
     return partial_copy(model, ports=[p[2] for p in get_ports(model)])
 end
-
-cascade_and_unite(models::Vararg{U}) where {T, U <: AdmittanceModel{T}} =
-    cascade_and_unite(collect(models))
+cascade_and_unite(models::AdmittanceModel...) = cascade_and_unite(collect(models))

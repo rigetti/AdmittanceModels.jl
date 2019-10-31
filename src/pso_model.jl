@@ -6,13 +6,6 @@ using IterativeSolvers: lobpcg
 export PSOModel
 export lossless_modes_dense, lossy_modes_dense, lossless_modes_sparse
 
-"""
-    PSOModel{T, U}(K::U, G::U, C::U, P::U, Q::U, ports::UniqueVector{T}) where {T, U}
-    PSOModel(K::U, G::U, C::U, P::U, Q::U, ports::AbstractVector{T}) where {T, U}
-
-A Positive Second Order model, representing the equations `(K + G∂ₜ + C∂²ₜ)Φ = Px`,
-`y = Qᵀ∂ₜΦ`.
-"""
 struct PSOModel{T, U<:AbstractMatrix{Float64}} <: AdmittanceModel{T}
     K::U
     G::U
@@ -20,16 +13,22 @@ struct PSOModel{T, U<:AbstractMatrix{Float64}} <: AdmittanceModel{T}
     P::U
     Q::U
     ports::UniqueVector{T}
-    function PSOModel{T, U}(K::U, G::U, C::U, P::U, Q::U,
-        ports::UniqueVector{T}) where {T, U}
+    function PSOModel{T, U}(K, G, C, P, Q, ports::UniqueVector{T}) where {T, U}
         l = size(K, 1)
         @assert size(P) == (l, length(ports))
         @assert size(Q) == (l, length(ports))
-        @assert all([size(y) == (l, l) for y in [K, G, C]])
-        return new{T, U}(K, G, C, P, Q, ports)
+        @assert all(size(y) == (l, l) for y in (K, G, C))
+        return new(K, G, C, P, Q, ports)
     end
 end
 
+"""
+    PSOModel(K::U, G::U, C::U, P::U, Q::U, ports::AbstractVector{T}) where {T, U}
+
+Create a positive second order (PSO) model, representing the equations
+`(K + G∂ₜ + C∂²ₜ)Φ = Px`, `y = Qᵀ∂ₜΦ`. (If the subscript `t` does not display in
+the equations, install a font with greater Unicode coverage.)
+"""
 PSOModel(K::U, G::U, C::U, P::U, Q::U, ports::AbstractVector{T}) where {T, U} =
     PSOModel{T, U}(K, G, C, P, Q, UniqueVector(ports))
 
@@ -41,16 +40,16 @@ get_Q(pso::PSOModel) = pso.Q
 
 get_ports(pso::PSOModel) = pso.ports
 
-function partial_copy(pso::PSOModel{T, U};
-    Y::Union{Vector{V}, Nothing}=nothing,
-    P::Union{V, Nothing}=nothing,
-    Q::Union{V, Nothing}=nothing,
-    ports::Union{AbstractVector{W}, Nothing}=nothing) where {T, U, V, W}
-    Y = Y == nothing ? get_Y(pso) : Y
-    P = P == nothing ? get_P(pso) : P
-    Q = Q == nothing ? get_Q(pso) : Q
-    ports = ports == nothing ? get_ports(pso) : ports
-    return PSOModel(Y..., P, Q, ports)
+function partial_copy(pso::PSOModel;
+        Y::Union{AbstractVector, Nothing} = nothing,
+        P::Union{AbstractMatrix{<:Real}, Nothing} = nothing,
+        Q::Union{AbstractMatrix{<:Real}, Nothing} = nothing,
+        ports::Union{AbstractVector, Nothing} = nothing)
+    Y = isnothing(Y) ? get_Y(pso) : Y
+    P = isnothing(P) ? get_P(pso) : P
+    Q = isnothing(Q) ? get_Q(pso) : Q
+    ports = isnothing(ports) ? get_ports(pso) : ports
+    return PSOModel(Y..., P, Q, UniqueVector(ports))
 end
 
 compatible(psos::AbstractVector{<:PSOModel}) = true
@@ -122,8 +121,8 @@ of an eigenvalue `λ` and an eigenvector `v`. The frequency of the mode is `imag
 and the decay rate is `-2*real(λ)/(2π)`. `min_freq` and `max_freq` give the
 frequency range in which to find eigenvalues.
 """
-function lossless_modes_dense(pso::PSOModel; min_freq::Real=0,
-    max_freq::Union{Real, Nothing}=nothing)
+function lossless_modes_dense(pso::PSOModel; min_freq::Real = 0,
+    max_freq::Union{Real, Nothing} = nothing)
     K, _, C = get_Y(pso)
     K = .5 * (transpose(K) + K)
     C = .5 * (transpose(C) + C)
@@ -143,13 +142,13 @@ function lossless_modes_dense(pso::PSOModel; min_freq::Real=0,
 end
 
 """
-    lossless_modes_sparse(pso::PSOModel; num_modes=1, maxiter=200)
+    lossless_modes_sparse(pso::PSOModel; num_modes = 1, maxiter = 200)
 
 Use a sparse generalized eigenvalue solver to find the `num_modes` lowest frequency modes
 of the PSOModel neglecting loss. Each mode consists of an eigenvalue `λ` and an eigenvector
 `v`. The frequency of the mode is `imag(λ)/(2π)` and the decay rate is `-2*real(λ)/(2π)`.
 """
-function lossless_modes_sparse(pso::PSOModel; num_modes=1, maxiter=200)
+function lossless_modes_sparse(pso::PSOModel; num_modes = 1, maxiter = 200)
     K, _, C = get_Y(pso)
     K = (K + transpose(K))/2
     C = (C + transpose(C))/2
@@ -160,11 +159,17 @@ function lossless_modes_sparse(pso::PSOModel; num_modes=1, maxiter=200)
     return real.(sqrt.(values)) * 1im, vectors
 end
 
-function port_matrix(circuit::Circuit, port_edges::Vector{<:Tuple})
-    coord_matrix = coordinate_matrix(circuit)
+"""
+    port_matrix(c::Circuit, port_edges::Vector{<:Tuple})
+Returns a port matrix suitable for constructing a `PSOModel` based on
+`c::Circuit`, where the columns of the port matrix correspond to edges between
+circuit vertices. The edges are given as tuples of vertex names in `port_edges`.
+"""
+function port_matrix(c::Circuit, port_edges::Vector{<:Tuple})
+    coord_matrix = coordinate_matrix(c)
     if length(port_edges) > 0
-        port_indices = [(findfirst(isequal(p[1]), circuit.vertices),
-                         findfirst(isequal(p[2]), circuit.vertices)) for p in port_edges]
+        port_indices = [(findfirst(isequal(p[1]), c.vertices),
+                         findfirst(isequal(p[2]), c.vertices)) for p in port_edges]
         return hcat([coord_matrix[:, i1] - coord_matrix[:, i2]
             for (i1, i2) in port_indices]...)
     else
@@ -172,15 +177,21 @@ function port_matrix(circuit::Circuit, port_edges::Vector{<:Tuple})
     end
 end
 
-circuit_to_pso_matrix(m::AbstractMatrix{<:Real}) =
+"""
+    circuit_to_pso_matrix(m::AbstractMatrix)
+Convert one of the inverse inductance, conductance, or capacitance matrices
+characterizing a `Circuit` into the form needed for a `PSOModel`.
+"""
+circuit_to_pso_matrix(m::AbstractMatrix) =
     (-m + spdiagm(0=>sum(m, dims=2)[:,1]))[2:end, 2:end]
 
 """
     PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
         port_names::AbstractVector)
 
-Create a PSOModel for a circuit with ports on given edges. The spanning tree where the
-first vertex is chosen as ground and all other vertices are neighbors of ground is used.
+Create a PSOModel for a circuit with ports on given edges. The spanning tree
+where the first vertex is chosen as ground and all other vertices are neighbors
+of ground is used.
 """
 function PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
         port_names::AbstractVector)
@@ -189,18 +200,28 @@ function PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
     return PSOModel(Y..., P, P, port_names)
 end
 
-coordinate_transform(m::AbstractMatrix{<:Real}) = m[:,2:end] .- m[:,1]
+"""
+    coordinate_transform(m::AbstractMatrix)
+Construct a coordinate transformation matrix for a `PSOModel` from a matrix
+given by e.g. `coordinate_matrix(c::Circuit{T}, tree::SpanningTree{T}) where T`.
+"""
+coordinate_transform(m::AbstractMatrix) = m[:,2:end] .- m[:,1]
 
-function coordinate_transform(coord_matrix_from::AbstractMatrix{<:Real},
-    coord_matrix_to::AbstractMatrix{<:Real})
-    return coordinate_transform(coord_matrix_to)/coordinate_transform(coord_matrix_from)
+"""
+    coordinate_transform(coord_from::AbstractMatrix, coord_to::AbstractMatrix)
+Construct a coordinate transformation matrix to go from a `PSOModel` constructed
+with one spanning tree to a `PSOModel` constructed with another.
+"""
+function coordinate_transform(coord_from::AbstractMatrix, coord_to::AbstractMatrix)
+    return coordinate_transform(coord_to) / coordinate_transform(coord_from)
 end
 
 """
     PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
         port_names::AbstractVector, tree::SpanningTree)
 
-Create a PSOModel for a circuit with ports on given edges and using the given spanning tree.
+Create a PSOModel for a circuit with ports on given edges and using the given
+spanning tree.
 """
 function PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
         port_names::AbstractVector, tree::SpanningTree)

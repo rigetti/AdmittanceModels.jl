@@ -1,4 +1,5 @@
 module AdmittanceModels
+using Compat
 
 include("linear_algebra.jl")
 include("admittance_model.jl")
