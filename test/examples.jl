@@ -58,7 +58,7 @@ module PSOModelExample
     PORT_1 = "port_1"
     ports = [PORT_0, PORT_1]
     P = 1.0 * sparse([[1, 0, 0, 0] [0, 0, 1, 0]])
-    pso = PSOModel(K, G, C, P, P, ports)
+    pso = PSOModel(K, G, C, P, ports)
 end
 
 module LRCExample

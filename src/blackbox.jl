@@ -3,56 +3,56 @@ using UniqueVectors: UniqueVector
 export Blackbox
 export impedance_matrices, admittance_matrices, scattering_matrices
 
-struct Blackbox{T, U<:AbstractMatrix{<:Number}} <: AdmittanceModel{T}
-    ω::Vector{Float64}
-    Y::Vector{U}
-    P::U
-    Q::U
+struct Blackbox{T, W<:Number, Y<:AbstractMatrix{<:Number},
+        P<:AbstractMatrix{<:Number}} <: AdmittanceModel{T}
+    ω::Vector{W}
+    Y::Vector{Y}
+    P::P
     ports::UniqueVector{T}
-    function Blackbox{T, U}(ω::Vector{Float64}, Y::Vector{U}, P::U, Q::U,
-            ports::UniqueVector{T}) where {T, U}
-        if !isempty(Y)
-            l = size(first(Y), 1)
-            @assert size(P) == (l, length(ports))
-            @assert size(Q) == (l, length(ports))
-            @assert all(size(y) == (l, l) for y in Y)
+    function Blackbox{T}(ω::AbstractVector, y::AbstractVector, p::AbstractMatrix,
+            ports::UniqueVector{T}) where {T}
+        @assert all(isreal(m) for m in (ω, p))
+        @assert length(ω) == length(y)
+        if !isempty(y)
+            l = size(first(y), 1)
+            @assert size(p) == (l, length(ports))
+            @assert all(size(yy) == (l, l) for yy in y)
         end
-        @assert length(ω) == length(Y)
-        return new(ω, Y, P, Q, ports)
+        ww, pp = float.((ω, p))
+        yy = float.(y)
+        W = eltype(ww)
+        Y = eltype(yy)
+        P = typeof(pp)
+        return new{T, W, Y, P}(ww, yy, pp, ports)
     end
 end
 
 """
-    Blackbox(ω::Vector{<:Number}, Y::Vector{U}, P::U, Q::U,
-        ports::AbstractVector{T}) where {T, U}
+    Blackbox(ω::AbstractVector{<:Number}, Y::AbstractVector,
+        P::AbstractMatrix, ports::AbstractVector{T}) where {T}
 Create a `Blackbox`, which has an admittance matrix `Y(ω′)` sampled over a
 discrete set of frequencies `ω` such that `Y[i] == Y(ω[i])`, for valid `i`.
 The port names are of type `T`.
 """
-function Blackbox(ω::Vector{<:Number}, Y::Vector{U}, P::U, Q::U,
-        ports::AbstractVector{T}) where {T, U}
-    @assert isreal(ω)
-    return Blackbox{T, U}(ω, Y, P, Q, UniqueVector(ports))
+function Blackbox(ω::AbstractVector{<:Number}, Y::AbstractVector,
+        P::AbstractMatrix, ports::AbstractVector{T}) where {T}
+    return Blackbox{T}(ω, Y, P, UniqueVector(ports))
 end
 
 get_Y(bbox::Blackbox) = bbox.Y
 
 get_P(bbox::Blackbox) = bbox.P
 
-get_Q(bbox::Blackbox) = bbox.Q
-
 get_ports(bbox::Blackbox) = bbox.ports
 
 function partial_copy(bbox::Blackbox{T, U};
         Y::Union{Vector{V}, Nothing} = nothing,
         P::Union{V, Nothing} = nothing,
-        Q::Union{V, Nothing} = nothing,
         ports::Union{AbstractVector{W}, Nothing} = nothing) where {T, U, V, W}
     Y = isnothing(Y) ? get_Y(bbox) : Y
     P = isnothing(P) ? get_P(bbox) : P
-    Q = isnothing(Q) ? get_Q(bbox) : Q
     ports = isnothing(ports) ? get_ports(bbox) : ports
-    return Blackbox(bbox.ω, Y, P, Q, ports)
+    return Blackbox(bbox.ω, Y, P, ports)
 end
 
 function compatible(bboxes::AbstractVector{<:Blackbox})
@@ -90,7 +90,7 @@ end
 
 Find the impedance matrices `Z` with `y = Zx` for each `ω`.
 """
-impedance_matrices(bbox::Blackbox) = [transpose(bbox.Q) * (Y \ collect(bbox.P))
+impedance_matrices(bbox::Blackbox) = [transpose(bbox.P) * (Y \ collect(bbox.P))
     for Y in bbox.Y]
 
 """
@@ -125,8 +125,7 @@ function canonical_gauge(bbox::Blackbox)
     n = length(bbox.ports)
     Y = admittance_matrices(bbox)
     P = Matrix{eltype(eltype(Y))}(I, n, n)
-    Q = Matrix{eltype(eltype(Y))}(I, n, n)
-    return Blackbox(bbox.ω, Y, P, Q, bbox.ports)
+    return Blackbox(bbox.ω, Y, P, bbox.ports)
 end
 
 """
@@ -139,6 +138,5 @@ function Blackbox(ω::AbstractVector{<:Number}, pso::PSOModel)
     K, G, C = get_Y(pso)
     Y = [K ./ s + G + C .* s for s in im * ω]
     P = complex(float(get_P(pso)))
-    Q = complex(float(get_Q(pso)))
-    return Blackbox(ω, Y, P, Q, get_ports(pso))
+    return Blackbox(ω, Y, P, get_ports(pso))
 end

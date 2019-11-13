@@ -13,7 +13,6 @@ using SparseArrays: SparseMatrixCSC
         @test issymmetric(m)
     end
     @test size(get_P(ae.pso)) == (4, 2)
-    @test get_Q(ae.pso) == get_P(ae.pso)
 end
 
 @testset "coordinate_transform" begin

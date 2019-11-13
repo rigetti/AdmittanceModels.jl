@@ -6,50 +6,51 @@ using IterativeSolvers: lobpcg
 export PSOModel
 export lossless_modes_dense, lossy_modes_dense, lossless_modes_sparse
 
-struct PSOModel{T, U<:AbstractMatrix{Float64}} <: AdmittanceModel{T}
-    K::U
-    G::U
-    C::U
-    P::U
-    Q::U
+struct PSOModel{T,
+        K<:AbstractMatrix{<:Number},
+        G<:AbstractMatrix{<:Number},
+        C<:AbstractMatrix{<:Number},
+        P<:AbstractMatrix{<:Number}} <: AdmittanceModel{T}
+    K::K
+    G::G
+    C::C
+    P::P
     ports::UniqueVector{T}
-    function PSOModel{T, U}(K, G, C, P, Q, ports::UniqueVector{T}) where {T, U}
-        l = size(K, 1)
-        @assert size(P) == (l, length(ports))
-        @assert size(Q) == (l, length(ports))
-        @assert all(size(y) == (l, l) for y in (K, G, C))
-        return new(K, G, C, P, Q, ports)
+    function PSOModel{T}(k, g, c, p, ports::UniqueVector{T}) where {T}
+        l = size(k, 1)
+        @assert all(isreal(m) for m in (k, g, c, p))
+        @assert size(p) == (l, length(ports))
+        @assert all(size(y) == (l, l) for y in (k, g, c))
+        kk, gg, cc, pp = float.((k, g, c, p))
+        K, G, C, P = typeof.((kk, gg, cc, pp))
+        return new{T,K,G,C,P}(kk, gg, cc, pp, ports)
     end
 end
 
 """
-    PSOModel(K::U, G::U, C::U, P::U, Q::U, ports::AbstractVector{T}) where {T, U}
+    PSOModel(K, G, C, P, ports::AbstractVector{T}) where {T}
 
 Create a positive second order (PSO) model, representing the equations
 `(K + G∂ₜ + C∂²ₜ)Φ = Px`, `y = Qᵀ∂ₜΦ`. (If the subscript `t` does not display in
 the equations, install a font with greater Unicode coverage.)
 """
-PSOModel(K::U, G::U, C::U, P::U, Q::U, ports::AbstractVector{T}) where {T, U} =
-    PSOModel{T, U}(K, G, C, P, Q, UniqueVector(ports))
+PSOModel(K, G, C, P, ports::AbstractVector{T}) where {T} =
+    PSOModel{T}(K, G, C, P, UniqueVector(ports))
 
-get_Y(pso::PSOModel) = [pso.K, pso.G, pso.C]
+get_Y(pso::PSOModel) = (pso.K, pso.G, pso.C)
 
 get_P(pso::PSOModel) = pso.P
-
-get_Q(pso::PSOModel) = pso.Q
 
 get_ports(pso::PSOModel) = pso.ports
 
 function partial_copy(pso::PSOModel;
         Y::Union{AbstractVector, Nothing} = nothing,
         P::Union{AbstractMatrix{<:Real}, Nothing} = nothing,
-        Q::Union{AbstractMatrix{<:Real}, Nothing} = nothing,
         ports::Union{AbstractVector, Nothing} = nothing)
     Y = isnothing(Y) ? get_Y(pso) : Y
     P = isnothing(P) ? get_P(pso) : P
-    Q = isnothing(Q) ? get_Q(pso) : Q
     ports = isnothing(ports) ? get_ports(pso) : ports
-    return PSOModel(Y..., P, Q, UniqueVector(ports))
+    return PSOModel(Y..., P, UniqueVector(ports))
 end
 
 compatible(psos::AbstractVector{<:PSOModel}) = true
@@ -197,7 +198,7 @@ function PSOModel(circuit::Circuit, port_edges::Vector{<:Tuple},
         port_names::AbstractVector)
     Y = [circuit_to_pso_matrix(m) for m in matrices(circuit)]
     P = port_matrix(circuit, port_edges)
-    return PSOModel(Y..., P, P, port_names)
+    return PSOModel(Y..., P, port_names)
 end
 
 """

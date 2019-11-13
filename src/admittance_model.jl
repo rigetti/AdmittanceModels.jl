@@ -1,5 +1,5 @@
 export AdmittanceModel
-export get_Y, get_P, get_Q, get_ports, partial_copy, compatible, canonical_gauge
+export get_Y, get_P, get_ports, partial_copy, compatible, canonical_gauge
 export apply_transform, cascade, cascade_and_unite, ports_to_indices
 export unite_ports, open_ports, open_ports_except, short_ports, short_ports_except
 
@@ -13,7 +13,6 @@ are expected to implement:
 
     get_Y(am::U)
     get_P(am::U)
-    get_Q(am::U)
     get_ports(am::U)
     partial_copy(am::U; Y, P, ports)
     compatible(AbstractVector{U})
@@ -35,14 +34,6 @@ function get_Y end
 Return an input port matrix.
 """
 function get_P end
-
-"""
-    get_Q(pso::PSOModel)
-    get_Q(bbox::Blackbox)
-
-Return an output port matrix.
-"""
-function get_Q end
 
 """
     get_ports(pso::PSOModel)
@@ -116,8 +107,7 @@ Apply a linear transformation `transform` to the coordinates of the model.
 function apply_transform(am::AdmittanceModel, transform::AbstractMatrix{<:Number})
     Y = [transpose(transform) * m * transform for m in get_Y(am)]
     P = eltype(Y)(transpose(transform) * get_P(am))
-    Q = eltype(Y)(transpose(transform) * get_Q(am))
-    return partial_copy(am, Y=Y, P=P, Q=Q)
+    return partial_copy(am, Y=Y, P=P)
 end
 
 """
@@ -134,9 +124,8 @@ function cascade(ams::AbstractVector{<:AdmittanceModel})
     @assert compatible(ams)
     Y = [cat(m..., dims=(1,2)) for m in zip([get_Y(am) for am in ams]...)]
     P = cat([get_P(am) for am in ams]..., dims=(1,2))
-    Q = cat([get_Q(am) for am in ams]..., dims=(1,2))
     ports = vcat([get_ports(am) for am in ams]...)
-    return partial_copy(ams[1], Y=Y, P=P, Q=Q, ports=ports)
+    return partial_copy(ams[1], Y=Y, P=P, ports=ports)
 end
 cascade(ams::AdmittanceModel...) = cascade(collect(ams))
 
@@ -169,7 +158,7 @@ function unite_ports(am::AdmittanceModel, ports::AbstractVector)
     constraint_mat = transpose(hcat([first_vector - P[:, i] for i in port_inds[2:end]]...))
     constrained_am = apply_transform(am, nullbasis(constraint_mat))
     return partial_copy(constrained_am, P=get_P(constrained_am)[:, keep_inds],
-        Q=get_Q(constrained_am)[:, keep_inds], ports=get_ports(constrained_am)[keep_inds])
+        ports=get_ports(constrained_am)[keep_inds])
 end
 unite_ports(am::AdmittanceModel, ports...) = unite_ports(am, collect(ports))
 
@@ -186,7 +175,7 @@ function open_ports(am::AdmittanceModel, ports::AbstractVector)
     port_inds = ports_to_indices(am, ports)
     keep_inds = filter(!in(port_inds), 1:length(get_ports(am)))
     return partial_copy(am, P=get_P(am)[:, keep_inds],
-        Q=get_Q(am)[:, keep_inds], ports=get_ports(am)[keep_inds])
+        ports=get_ports(am)[keep_inds])
 end
 open_ports(am::AdmittanceModel, ports...) = open_ports(am, collect(ports))
 
@@ -213,8 +202,8 @@ function short_ports(am::AdmittanceModel, ports::AbstractVector)
     keep_inds = filter(!in(port_inds), 1:length(get_ports(am)))
     constraint_mat = transpose(hcat([get_P(am)[:, i] for i in port_inds]...))
     constrained_am = apply_transform(am, nullbasis(constraint_mat))
-    return partial_copy(constrained_am, P=get_P(constrained_am)[:, keep_inds],
-        Q=get_Q(constrained_am)[:, keep_inds], ports=get_ports(constrained_am)[keep_inds])
+    return partial_copy(constrained_am, P = get_P(constrained_am)[:, keep_inds],
+        ports = get_ports(constrained_am)[keep_inds])
 end
 short_ports(am::AdmittanceModel, ports...) = short_ports(am, collect(ports))
 

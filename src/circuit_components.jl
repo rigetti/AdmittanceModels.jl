@@ -240,7 +240,7 @@ function Blackbox(ω::Vector{<:Number}, comp::TransmissionLine)
         Y = [[[a, b] [b, a]] for (a, b) in zip(Y11_Y22, Y12_Y21)]
         U = eltype(eltype(Y))
         P = Matrix{U}(I, 2, 2)
-        return Blackbox(ω, Y, P, P, ports)
+        return Blackbox(ω, Y, P, ports)
     end
     sort_inds = sortperm(comp.port_locations)
     sort_port_locations = comp.port_locations[sort_inds]
