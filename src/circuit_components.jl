@@ -248,5 +248,5 @@ function Blackbox(ω::Vector{<:Number}, comp::TransmissionLine)
     params = [(ports = [sort_ports[i], sort_ports[i + 1]],
               len = sort_port_locations[i+1] - sort_port_locations[i])
               for i in 1:(length(comp.ports)-1)]
-    return cascade_and_unite([Blackbox_from_params(p...) for p in params])
+    return connect([Blackbox_from_params(p...) for p in params])
 end

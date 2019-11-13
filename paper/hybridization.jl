@@ -64,7 +64,7 @@ begin
     res_1_coupler_name = "r1/$(1+res_coupler_num)"
     capacitor_0 = Circuit(SeriesComponent(pfilter_res_0_coupler_name, res_0_coupler_name, 0, 0, capacitance_0))
     capacitor_1 = Circuit(SeriesComponent(pfilter_res_1_coupler_name, res_1_coupler_name, 0, 0, capacitance_1))
-    circ = cascade_and_unite(pfilter_circ, res_0_circ, res_1_circ, capacitor_0, capacitor_1)
+    circ = connect(pfilter_circ, res_0_circ, res_1_circ, capacitor_0, capacitor_1)
     ground = AdmittanceModels.ground
     circ = unite_vertices(circ, ground, "p/short_0", "p/short_1", "r0/short", "r1/short")
 
@@ -98,14 +98,14 @@ function components_from_model(stub_num::Int, discretization::Real=δ)
 end
 
 function bbox_from_pso(stub_num::Int, ω::Vector{<:Real}, discretization::Real=δ)
-    model = cascade_and_unite(PSOModel.(components_from_model(stub_num, discretization)))
+    model = connect(PSOModel.(components_from_model(stub_num, discretization)))
     model = short_ports(model, ["p/short_0", "p/short_1", "r0/short", "r1/short"])
     model = open_ports_except(model, ["in", "out"])
     return canonical_gauge(Blackbox(ω, model))
 end
 
 function bbox_from_bbox(stub_num::Int, ω::Vector{<:Real})
-    model = cascade_and_unite(Blackbox.(Ref(ω), components_from_model(stub_num)))
+    model = connect(Blackbox.(Ref(ω), components_from_model(stub_num)))
     model = short_ports(model, ["p/short_0", "p/short_1", "r0/short", "r1/short"])
     model = open_ports_except(model, ["in", "out"])
     return canonical_gauge(model)
@@ -162,7 +162,7 @@ end
 
 if show_results
     density(m) = count(!iszero, m)/(size(m,1) * size(m,2))
-    model = cascade_and_unite(PSOModel.(components_from_model(10, δ)))
+    model = connect(PSOModel.(components_from_model(10, δ)))
     model = short_ports(model, ["p/short_0", "p/short_1", "r0/short", "r1/short"])
     println("pso matrix densities: $(map(density, get_Y(model)))")
 end
@@ -176,7 +176,7 @@ function resistor_circ(stub_num::Int)
     input, output = input_output(stub_num)
     resistor_0 = Circuit(ParallelComponent(input, 0, 1/Z0, 0))
     resistor_1 = Circuit(ParallelComponent(output, 0, 1/Z0, 0))
-    return cascade_and_unite(circ, resistor_0, resistor_1)
+    return connect(circ, resistor_0, resistor_1)
 end
 
 begin
@@ -324,11 +324,11 @@ end
 
 function eigenvals(stub_num::Int, discretization::Real)
     comp = components_from_model(stub_num, discretization)
-    model = cascade_and_unite(PSOModel.(comp))
+    model = connect(PSOModel.(comp))
     model = short_ports(model, ["p/short_0", "p/short_1", "r0/short", "r1/short"])
     terminations = PSOModel.([ParallelComponent("in",  0, 1/Z0, 0),
                               ParallelComponent("out", 0, 1/Z0, 0)])
-    pso = cascade_and_unite([model; terminations])
+    pso = connect([model; terminations])
     eigenvalues, eigenvectors = lossy_modes_dense(pso, min_freq=4e9, max_freq=8e9)
     port_inds = ports_to_indices(pso, "p/middle", "r0/open", "r1/open")
     mode_inds = AdmittanceModels.match_vectors(get_P(pso)[:, port_inds], eigenvectors)

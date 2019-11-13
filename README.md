@@ -88,7 +88,7 @@ components = [resonator, tline, coupler]
 Use `PSOModel` objects to compute the frequency and decay rate of quarter wave resonator mode. Include resistors at the ports in order to get the correct decay rate.
 ```julia
 resistors = [ParallelComponent(name, 0, 1/Z0, 0) for name in ["in", "out"]]
-pso = cascade_and_unite(PSOModel.([components; resistors]))
+pso = connect(PSOModel.([components; resistors]))
 pso = short_ports(pso, "short")
 λs, _ = lossy_modes_dense(pso, min_freq=3e9, max_freq=7e9)
 freq = imag(λs[1])/(2π)
@@ -98,7 +98,7 @@ decay = -2*real(λs[1])/(2π)
 Compute the transmission scattering parameters `Blackbox`. This uses a closed form representation of the transmission lines.
 ```julia
 ω = collect(range(freq - 2 * decay, stop=freq + 2 * decay, length=300)) * 2π
-bbox = cascade_and_unite(Blackbox.(Ref(ω), components))
+bbox = connect(Blackbox.(Ref(ω), components))
 bbox = short_ports(bbox, "short")
 bbox = open_ports_except(bbox, ["in", "out"])
 S = [x[1,2] for x in scattering_matrices(bbox, [Z0, Z0])]

@@ -57,12 +57,12 @@ function create_tline_components(δ::Real)
     return [resonator, environment, er_coupler, qr_coupler]
 end
 create_tline_pso(δ) = short_ports(
-    cascade_and_unite(PSOModel.(create_tline_components(δ))), "short")
+    connect(PSOModel.(create_tline_components(δ))), "short")
 
 tline_cascade_comp    = create_tline_components(δ)
 tline_cascade_pso     = create_tline_pso(δ)
 tline_cascade_bbox(ω) = short_ports(
-    cascade_and_unite(Blackbox.(Ref(ω), create_tline_components(δ))), "short")
+    connect(Blackbox.(Ref(ω), create_tline_components(δ))), "short")
 
 #######################################################
 # Purcell filter model
@@ -86,12 +86,12 @@ function create_pfilter_components(δ::Real)
     qr_coupler = SeriesComponent("qubit", "qr_coupler", 0, 0, cg)
     return [resonator, environment, er_coupler, qr_coupler]
 end
-create_pfilter_pso(δ) = short_ports(cascade_and_unite(
+create_pfilter_pso(δ) = short_ports(connect(
     PSOModel.(create_pfilter_components(δ))), ["short 1", "short 2", "short 3"])
 
 pfilter_cascade_comp = create_pfilter_components(δ)
 pfilter_cascade_pso  = create_pfilter_pso(δ)
-pfilter_cascade_bbox(ω) = short_ports(cascade_and_unite(
+pfilter_cascade_bbox(ω) = short_ports(connect(
     Blackbox.(Ref(ω), pfilter_cascade_comp)), ["short 1", "short 2", "short 3"])
 #######################################################
 # Scattering parameters with qubit
@@ -109,23 +109,23 @@ begin
     qubit = ParallelComponent("qubit", 1/lj, 0, cj)
 
     tline_pso_bbox = let
-        model = cascade_and_unite(tline_cascade_pso, PSOModel(qubit))
+        model = connect(tline_cascade_pso, PSOModel(qubit))
         model = open_ports_except(model, ["in", "out"])
         Blackbox(ω, model)
     end
     tline_pso_bbox_s = [x[1,2] for x in scattering_matrices(tline_pso_bbox, [Z0, Z0])]
     tline_bbox = let
-        model = cascade_and_unite(tline_cascade_bbox(ω), Blackbox(ω, qubit))
+        model = connect(tline_cascade_bbox(ω), Blackbox(ω, qubit))
         model = open_ports_except(model, ["in", "out"])
     end
     tline_bbox_s = [x[1,2] for x in scattering_matrices(tline_bbox, [Z0, Z0])]
     pfilter_pso_bbox = let
-        model = cascade_and_unite(pfilter_cascade_pso, PSOModel(qubit))
+        model = connect(pfilter_cascade_pso, PSOModel(qubit))
         Blackbox(ω, open_ports_except(model, ["in", "out"]))
     end
     pfilter_pso_bbox_s = [x[1,2] for x in scattering_matrices(pfilter_pso_bbox, [Z0, Z0])]
     pfilter_bbox = let
-        model = cascade_and_unite(pfilter_cascade_bbox(ω), Blackbox(ω, qubit))
+        model = connect(pfilter_cascade_bbox(ω), Blackbox(ω, qubit))
         open_ports_except(model, ["in", "out"])
     end
     pfilter_bbox_s = [x[1,2] for x in scattering_matrices(pfilter_bbox, [Z0, Z0])]
@@ -152,11 +152,11 @@ end
 
 function terminated(model::PSOModel)
     resistors = ParallelComponent.(["in", "out"], 0, 1/Z0, 0)
-    return cascade_and_unite([model; PSOModel.(resistors)])
+    return connect([model; PSOModel.(resistors)])
 end
 function admittances(model::Blackbox)
     resistors = ParallelComponent.(["in", "out"], 0, 1/Z0, 0)
-    model = cascade_and_unite([model; Blackbox.(Ref(model.ω), resistors)])
+    model = connect([model; Blackbox.(Ref(model.ω), resistors)])
     bb = canonical_gauge(open_ports_except(model, "qubit"))
     return [x[1,1] for x in admittance_matrices(bb)]
 end
@@ -219,7 +219,7 @@ end
 
 function eigenmodes(lj::Real, pso::PSOModel)
     qubit = ParallelComponent("qubit", 1/lj, 0, cj)
-    pso_full = cascade_and_unite(pso, PSOModel(qubit))
+    pso_full = connect(pso, PSOModel(qubit))
     eigenvalues, eigenvectors = lossy_modes_dense(pso_full, min_freq=1e9, max_freq=25e9)
     port_inds = ports_to_indices(pso_full, "qubit", "qr_coupler", "mode_2_max")
     mode_inds = AdmittanceModels.match_vectors(get_P(pso_full)[:, port_inds], eigenvectors)

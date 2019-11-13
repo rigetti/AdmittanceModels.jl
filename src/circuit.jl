@@ -11,8 +11,7 @@ export set_inv_inductance!, set_inductance!
 export set_conductance!, set_resistance!
 export set_capacitance!, set_elastance!
 
-export SpanningTree, coordinate_matrix
-export cascade, unite_vertices, cascade_and_unite
+export SpanningTree, coordinate_matrix, unite_vertices
 
 SparseMat{T} = SparseMatrixCSC{T, Int}
 
@@ -351,11 +350,12 @@ unite_vertices(circ::Circuit{T}, vertices::T...) where T =
     unite_vertices(circ, collect(vertices))
 
 """
-    cascade_and_unite(models::AbstractVector{<:Circuit})
-    cascade_and_unite(models::Circuit...)
-Cascade all circuits and unite ports with the same name.
+    connect(models::AbstractVector{<:Circuit})
+    connect(models::Circuit...)
+Cascade all models and unite ports with the same name. This results in a
+combined circuit with common ports connected.
 """
-function cascade_and_unite(circs::AbstractVector{<:Circuit})
+function connect(circs::AbstractVector{<:Circuit})
     @assert !isempty(circs)
     if length(circs) == 1
         return first(circs)
@@ -378,4 +378,4 @@ function cascade_and_unite(circs::AbstractVector{<:Circuit})
     # remove numbering
     return Circuit(matrices(circ)..., [v[2] for v in circ.vertices])
 end
-cascade_and_unite(circs::Circuit...) = cascade_and_unite(collect(circs))
+connect(circs::Circuit...) = connect(collect(circs))

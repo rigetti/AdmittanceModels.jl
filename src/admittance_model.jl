@@ -1,6 +1,6 @@
 export AdmittanceModel
 export get_Y, get_P, get_ports, partial_copy, compatible, canonical_gauge
-export apply_transform, cascade, cascade_and_unite, ports_to_indices
+export apply_transform, cascade, connect, cascade_and_unite, ports_to_indices
 export unite_ports, open_ports, open_ports_except, short_ports, short_ports_except
 
 """
@@ -220,12 +220,13 @@ short_ports_except(am::AdmittanceModel, ports...) =
     short_ports_except(am, collect(ports))
 
 """
-    cascade_and_unite(models::AbstractVector{<:AdmittanceModel})
-    cascade_and_unite(models::AdmittanceModel...)
+    connect(models::AbstractVector{<:AdmittanceModel})
+    connect(models::AdmittanceModel...)
 
-Cascade all models and unite ports with the same name.
+Cascade all models and unite ports with the same name. This results in a
+combined admittance model with common ports connected.
 """
-function cascade_and_unite(models::AbstractVector{<:AdmittanceModel})
+function connect(models::AbstractVector{<:AdmittanceModel})
     @assert length(models) >= 1
     if length(models) == 1
         return models[1]
@@ -247,4 +248,4 @@ function cascade_and_unite(models::AbstractVector{<:AdmittanceModel})
     # remove numbering
     return partial_copy(model, ports=[p[2] for p in get_ports(model)])
 end
-cascade_and_unite(models::AdmittanceModel...) = cascade_and_unite(collect(models))
+connect(models::AdmittanceModel...) = connect(collect(models))

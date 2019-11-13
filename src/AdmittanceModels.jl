@@ -1,6 +1,8 @@
 module AdmittanceModels
 using Compat
 
+@deprecate cascade_and_unite connect
+
 include("linear_algebra.jl")
 include("admittance_model.jl")
 include("circuit.jl")
