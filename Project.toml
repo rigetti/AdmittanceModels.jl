@@ -1,7 +1,7 @@
 name = "AdmittanceModels"
 uuid = "5eda1363-42a2-4d75-bc45-7e2a4a7b92b2"
 authors = ["Michael Scheer <mgscheer@@gmail.com>, Dan Girshovich <dan@rigetti.com>"]
-version = "0.2.0"
+version = "0.3.0"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
